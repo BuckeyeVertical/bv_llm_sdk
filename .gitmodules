@@ -1,4 +1,0 @@
-[submodule "bv_bevy"]
-	path = bv_bevy
-	url = https://github.com/BuckeyeVertical/bv_bevy.git
-	branch = llm_sdk_sim
