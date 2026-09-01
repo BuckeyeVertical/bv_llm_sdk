@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <world name="bv_px4_fixture">
+    <physics name="physics" type="ode">
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+
+    <light name="sun" type="directional">
+      <direction>-0.5 0.2 -1.0</direction>
+    </light>
+
+    <model name="ground">
+      <static>true</static>
+      <link name="ground_link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <model name="reference_target">
+      <static>true</static>
+      <pose>0 0 0.025 0 0 0</pose>
+      <link name="target_link">
+        <collision name="collision">
+          <geometry><box><size>1 1 0.05</size></box></geometry>
+        </collision>
+      </link>
+    </model>
+
+    <model name="x500_gimbal_0">
+      <pose>0 0 5 0 0 0</pose>
+      <include merge="true">
+        <uri>model://x500_gimbal</uri>
+      </include>
+
+      <plugin filename="gz-sim-pose-publisher-system"
+              name="gz::sim::systems::PosePublisher">
+        <publish_model_pose>true</publish_model_pose>
+        <publish_nested_model_pose>true</publish_nested_model_pose>
+        <publish_link_pose>true</publish_link_pose>
+        <publish_sensor_pose>true</publish_sensor_pose>
+        <use_pose_vector_msg>true</use_pose_vector_msg>
+        <update_frequency>30</update_frequency>
+      </plugin>
+    </model>
+  </world>
+</sdf>

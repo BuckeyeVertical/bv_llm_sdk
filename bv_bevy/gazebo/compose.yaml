@@ -1,0 +1,10 @@
+services:
+  simulator:
+    platform: linux/amd64
+    build:
+      context: .
+    ports:
+      - "127.0.0.1:7001:7001"
+    environment:
+      BV_BRIDGE_CONFIG: /opt/bv/config/minimal.json
+      BV_GZ_WORLD: /opt/bv/worlds/minimal.sdf

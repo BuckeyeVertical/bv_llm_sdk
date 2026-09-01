@@ -1,0 +1,17 @@
+{
+  "pose_topic": "/model/x500/pose",
+  "listen_address": "0.0.0.0",
+  "listen_port": 7001,
+  "entities": [
+    {
+      "gazebo_name": "x500",
+      "id": "vehicle/x500",
+      "kind": "vehicle"
+    },
+    {
+      "gazebo_name": "x500::camera_link::camera",
+      "id": "camera/drone",
+      "kind": "camera"
+    }
+  ]
+}

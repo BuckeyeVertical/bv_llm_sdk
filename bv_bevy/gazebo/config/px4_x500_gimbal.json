@@ -1,0 +1,17 @@
+{
+  "pose_topic": "/model/x500_gimbal_0/pose",
+  "listen_address": "0.0.0.0",
+  "listen_port": 7001,
+  "entities": [
+    {
+      "gazebo_name": "x500_gimbal_0",
+      "id": "vehicle/x500",
+      "kind": "vehicle"
+    },
+    {
+      "gazebo_name": "x500_gimbal_0::camera_link::boundingbox_camera",
+      "id": "camera/drone",
+      "kind": "camera"
+    }
+  ]
+}

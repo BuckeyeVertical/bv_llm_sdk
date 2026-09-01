@@ -1,0 +1,39 @@
+diff --git a/worlds/bv_mission.sdf b/worlds/bv_mission.sdf
+--- a/worlds/bv_mission.sdf
++++ b/worlds/bv_mission.sdf
+@@ -73,7 +73,7 @@
+ 
+     <!-- Soccer ball (actual size) -->
+     <include>
+-      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/RoboCup 3D Simulation Ball</uri>
++      <uri>model://bv_soccer_ball</uri>
+       <pose>-2.0  0.0  0.11  0 0 0</pose>
+     </include>
+     
+@@ -85,7 +85,7 @@
+ 
+     <!-- Walking person (keep default scale) -->
+     <include>
+-      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Walking person</uri>
++      <uri>model://bv_walking_person</uri>
+       <pose>-2.0  2.0  0.0  0 0 0</pose>
+     </include>
+ 
+@@ -97,7 +97,7 @@
+ 
+     <!-- Stop Sign (default scale) -->
+     <include>
+-      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Stop Sign</uri>
++      <uri>model://bv_stop_sign</uri>
+       <pose> 2.0 -2.0  0.0  0 0 0</pose>
+     </include>
+ 
+@@ -109,7 +109,7 @@
+ 
+     <!-- Suitcase (default scale) -->
+     <include>
+-      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Suitcase1H</uri>
++      <uri>model://bv_suitcase</uri>
+       <pose> 0.0 -2.0  0.05  0 0 0</pose>
+     </include>
+ 
