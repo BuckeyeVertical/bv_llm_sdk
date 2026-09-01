@@ -33,7 +33,7 @@ uv sync
 ```
 Note: this project uses uv as a package manager so if your adding deps use ```uv add ...```
 
-Build Gazebo and PX4 image
+Build Gazebo, PX4 image and bevy.
 ```bash
 cd ~/ws/bv_bevy
 docker compose -f gazebo/compose.px4.yaml build
