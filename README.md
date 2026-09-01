@@ -48,7 +48,7 @@ cd ~/ws/bv_bevy
 docker compose -f gazebo/compose.px4.yaml up
 ```
 
-Start Bevy:
+In a seperate terminal, start Bevy:
 ```bash
 cd ~/ws/bv_bevy
 ./run_suas.sh
