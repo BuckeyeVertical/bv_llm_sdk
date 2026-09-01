@@ -1,0 +1,17 @@
+[project]
+name = "bv-llm-sdk"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "TrevorClute", email = "tclute07@outlook.com" }
+]
+requires-python = ">=3.14"
+dependencies = []
+
+[project.scripts]
+bv-llm-sdk = "bv_llm_sdk:main"
+
+[build-system]
+requires = ["uv_build>=0.12.8,<0.13.0"]
+build-backend = "uv_build"
