@@ -52,6 +52,13 @@ In a seperate terminal, start Bevy:
 ```bash
 cd ~/ws/bv_bevy
 ./run_suas.sh
+# If in windows
+./run_suas.ps1
+```
+
+Run Commands:
+```
+uv run scripts/arm.py
 ```
 
 
