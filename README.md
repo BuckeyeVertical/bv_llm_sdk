@@ -59,6 +59,7 @@ cd ~/ws/bv_bevy
 Run Commands:
 ```
 uv run scripts/arm.py
+uv run scripts/takeoff.py
 ```
 
 
