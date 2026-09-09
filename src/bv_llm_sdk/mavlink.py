@@ -30,6 +30,28 @@ def _send(conn: mavutil.mavfile, message) -> None:
     conn.port.sendto(message.pack(conn.mav), PX4_ADDR)
 
 
+def _recv(conn: mavutil.mavfile, message_type: str, timeout_s: float):
+    """recv_match that tolerates Windows turning an ICMP error into a reset.
+
+    Windows reports an ICMP port-unreachable caused by an earlier send as a
+    ConnectionResetError on the *next* recv. On a connectionless socket that
+    only means nobody was listening at PX4's address, so swallow it and let
+    the caller's own timeout be the one that decides.
+    """
+    deadline = time.time() + timeout_s
+    while True:
+        remaining = deadline - time.time()
+        if remaining <= 0.0:
+            return None
+        try:
+            return conn.recv_match(
+                type=message_type, blocking=True, timeout=remaining
+            )
+        except ConnectionResetError:
+            # Pace the retry, or an absent PX4 turns this into a busy loop.
+            time.sleep(0.1)
+
+
 def _heartbeat(conn: mavutil.mavfile) -> None:
     """Announce ourselves as a ground station."""
     _send(
@@ -50,6 +72,7 @@ def link(timeout_s: float = 15.0) -> Iterator[mavutil.mavfile]:
     conn = mavutil.mavlink_connection(
         f"udpin:0.0.0.0:{LOCAL_PORT}", source_system=255
     )
+
     try:
         deadline = time.time() + timeout_s
         while time.time() < deadline:
@@ -57,7 +80,7 @@ def link(timeout_s: float = 15.0) -> Iterator[mavutil.mavfile]:
             # first. Repeat: the first heartbeat after a PX4 restart or a long
             # idle gap often gets no reply.
             _heartbeat(conn)
-            conn.recv_match(type="HEARTBEAT", blocking=True, timeout=1.0)
+            _recv(conn, "HEARTBEAT", timeout_s=1.0)
             # Wait on target_system rather than on any heartbeat: pymavlink
             # latches it from the first *vehicle* heartbeat and ignores
             # heartbeats from other ground stations, so a running
@@ -98,7 +121,7 @@ def send_command(
     # The socket is new, so nothing queued on it can be a stale ack.
     deadline = time.time() + timeout_s
     while time.time() < deadline:
-        ack = conn.recv_match(type="COMMAND_ACK", blocking=True, timeout=1.0)
+        ack = _recv(conn, "COMMAND_ACK", timeout_s=1.0)
         if ack is None or ack.command != command:
             continue
         if ack.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
@@ -127,7 +150,7 @@ def wait_for(
             _heartbeat(conn)
             last_heartbeat = time.time()
 
-        message = conn.recv_match(type=message_type, blocking=True, timeout=1.0)
+        message = _recv(conn, message_type, timeout_s=1.0)
         if message is not None and predicate(message):
             return message
 
