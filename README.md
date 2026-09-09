@@ -56,5 +56,10 @@ cd ~/ws/bv_bevy
 ./run_suas.ps1
 ```
 
+Run Commands:
+```
+uv run scripts/arm.py
+```
+
 
 
