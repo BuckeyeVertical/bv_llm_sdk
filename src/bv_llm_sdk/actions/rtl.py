@@ -1,4 +1,4 @@
-"""Arm the vehicle's motors.
+"""Return the vehicle to launch
 
 Every action in this package is self-contained: it opens its own link, talks
 to PX4 directly, and closes it. Nothing is hidden in a shared helper, so this
