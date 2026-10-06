@@ -58,18 +58,27 @@ def _heartbeat(conn: mavutil.mavfile) -> None:
 
 
 def goto(
-    up_m: float, east_m: float, north_m: float, timeout_s: float = 60.0
+    up_m: float,
+    east_m: float,
+    north_m: float,
+    timeout_s: float = 60.0,
+    relative_to_drone: bool = False,
 ) -> None:
-    """Move by a local east/north/up offset from the starting position.
+    """Move by a local offset from the starting position.
 
     The vehicle must already be armed. Blocks until it reaches the requested
     altitude, and raises if it does not get there in time.
 
     Args:
         up_m: Vertical displacement from the starting position, in metres.
-        east_m: East displacement from the starting position, in metres.
-        north_m: North displacement from the starting position, in metres.
+        east_m: East displacement, or rightward displacement when
+            ``relative_to_drone`` is true, in metres.
+        north_m: North displacement, or forward displacement when
+            ``relative_to_drone`` is true, in metres.
         timeout_s: How long to allow for the whole climb.
+        relative_to_drone: If true, interpret horizontal offsets in the
+            drone's forward/right frame. Otherwise, interpret them in the
+            fixed north/east frame from the starting position.
 
     Raises:
         RuntimeError: PX4 never came up, rejected the goto, or the vehicle
@@ -115,8 +124,36 @@ def goto(
         start_lat = position.lat / 1e7
         start_lon = position.lon / 1e7
         start_alt_amsl_m = position.alt / 1000.0
-        target_lat = start_lat + north_m / 111_320.0
-        target_lon = start_lon + east_m / (
+
+        if relative_to_drone:
+            attitude = None
+            deadline = time.time() + 5.0
+            while time.time() < deadline:
+                try:
+                    attitude = conn.recv_match(
+                        type="ATTITUDE", blocking=True, timeout=1.0
+                    )
+                except ConnectionResetError:
+                    time.sleep(0.1)
+                    continue
+                if attitude is not None:
+                    break
+            if attitude is None:
+                raise RuntimeError("no ATTITUDE from PX4 within 5s")
+
+            heading_rad = attitude.yaw
+            north_offset_m = north_m * math.cos(heading_rad) - east_m * math.sin(
+                heading_rad
+            )
+            east_offset_m = north_m * math.sin(heading_rad) + east_m * math.cos(
+                heading_rad
+            )
+        else:
+            north_offset_m = north_m
+            east_offset_m = east_m
+
+        target_lat = start_lat + north_offset_m / 111_320.0
+        target_lon = start_lon + east_offset_m / (
             111_320.0 * math.cos(math.radians(start_lat))
         )
         target_alt_amsl_m = start_alt_amsl_m + up_m
