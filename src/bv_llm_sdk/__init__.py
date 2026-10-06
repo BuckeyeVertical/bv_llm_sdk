@@ -1,3 +1,4 @@
-from .actions import arm, takeoff, goto
+from .actions import arm, get_battery, hold, takeoff, goto
 
-__all__ = ["arm", "takeoff", "goto"]
+__all__ = ["arm", "get_battery", "hold", "takeoff", "goto"]
+
