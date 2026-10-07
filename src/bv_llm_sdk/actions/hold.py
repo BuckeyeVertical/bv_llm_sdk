@@ -29,6 +29,7 @@ action, because getting any of them wrong fails in a way that looks like
    without changing it everywhere.
 """
 
+import math
 import time
 
 from pymavlink import mavutil
@@ -70,9 +71,18 @@ def hold(duration_s: float = 10.0, timeout_s: float = 10.0) -> None:
         timeout_s: How long to wait for PX4 to acknowledge the command.
 
     Raises:
+        ValueError: duration_s is non-finite or negative, or timeout_s is
+            non-finite or nonpositive.
         RuntimeError: PX4 never came up, rejected the mode change, or never
             acknowledged it.
     """
+    if not math.isfinite(duration_s):
+        raise ValueError("duration_s must be finite")
+    if duration_s < 0:
+        raise ValueError("duration_s must be nonnegative")
+    if not math.isfinite(timeout_s) or timeout_s <= 0:
+        raise ValueError("timeout_s must be finite and positive")
+
     # --- establish ---
     conn = mavutil.mavlink_connection(
         f"udpin:0.0.0.0:{LOCAL_PORT}", source_system=255
