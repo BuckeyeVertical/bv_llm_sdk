@@ -1,7 +1,7 @@
 [project]
 name = "bv-llm-sdk"
 version = "0.1.0"
-description = "Add your description here"
+description = "Python tools that let an LLM fly a PX4 drone"
 readme = "README.md"
 authors = [
     { name = "TrevorClute", email = "tclute07@outlook.com" }
@@ -11,6 +11,26 @@ dependencies = [
     "pymavlink>=2.4.49",
 ]
 
+[project.optional-dependencies]
+vision = [
+    "ultralytics>=8.4.175",
+]
+agent = [
+    "httpx>=0.28.1",
+    "openai>=3.29.0",
+]
+claude = [
+    "anthropic>=1.13.0",
+]
+
+[project.scripts]
+bv-agent = "bv_llm_sdk.agent.cli:main"
+
 [build-system]
 requires = ["uv_build>=0.12.8,<0.13.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

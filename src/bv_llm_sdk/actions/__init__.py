@@ -1,7 +1,74 @@
-from .arm import arm
-from .takeoff import takeoff
-from .disarm import disarm
-from .rtl import rtl
+from .arming import arm, disarm
+from .flight import hold, land, return_to_launch, takeoff
+from .payload import grab_payload, release_payload
+from .perception import (
+    detect_objects,
+    fly_to_object,
+    look,
+    record_video,
+    search_area,
+    search_for_object,
+    survey_area,
+    take_photo,
+    track_object,
+)
+from .routes import (
+    draw,
+    face_location,
+    fly_home,
+    fly_shape,
+    fly_waypoints,
+    goto_saved_location,
+    land_at,
+    list_saved_locations,
+    save_location,
+)
+from .navigation import (
+    goto_location,
+    move,
+    move_relative,
+    orbit,
+    set_altitude,
+    set_heading,
+    set_speed,
+    turn,
+    wait,
+)
 
-__all__ = ["arm", "takeoff", "disarm", "rtl"]
-
+__all__ = [
+    "arm",
+    "disarm",
+    "takeoff",
+    "land",
+    "return_to_launch",
+    "hold",
+    "move",
+    "move_relative",
+    "goto_location",
+    "set_altitude",
+    "set_heading",
+    "turn",
+    "set_speed",
+    "orbit",
+    "wait",
+    "take_photo",
+    "look",
+    "detect_objects",
+    "search_for_object",
+    "search_area",
+    "fly_to_object",
+    "survey_area",
+    "track_object",
+    "record_video",
+    "fly_waypoints",
+    "fly_shape",
+    "draw",
+    "face_location",
+    "fly_home",
+    "land_at",
+    "save_location",
+    "list_saved_locations",
+    "goto_saved_location",
+    "release_payload",
+    "grab_payload",
+]
