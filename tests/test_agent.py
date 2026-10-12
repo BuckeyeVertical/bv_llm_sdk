@@ -333,3 +333,25 @@ def test_made_up_tool_in_text_gets_an_error_and_a_retry():
     first = next(m for m in agent.transcript if isinstance(m, ToolResult))
     assert "no tool 'fly_to'" in first.content["error"]
     assert ex.calls == [("goto_location", {"latitude": 1.0, "longitude": 2.0})]
+
+
+def test_junk_arguments_on_no_argument_tools_are_dropped():
+    ex = FakeExecutor()
+    agent, _, _ = make([
+        AssistantMessage(tool_calls=[call("get_battery", **{"": "{}"})]),
+        AssistantMessage(tool_calls=[ToolCall("c2", "move", {"": 1, "north_m": 5})]),
+        AssistantMessage(text="ok"),
+    ], ex, toolset="get_battery,move")
+    agent.run("go")
+    assert ex.calls == [("get_battery", {}), ("move", {"north_m": 5.0})]
+
+
+def test_openai_thinking_options():
+    pytest.importorskip("openai")
+    from bv_llm_sdk.agent.models.openai_compat import OpenAICompatModel
+
+    def opts(think):
+        return OpenAICompatModel(AgentConfig(backend="openai", think=think))._thinking_options()
+    assert opts(None) == {}
+    assert opts(False) == {"extra_body": {"chat_template_kwargs": {"enable_thinking": False}}}
+    assert opts("low") == {"reasoning_effort": "low"}

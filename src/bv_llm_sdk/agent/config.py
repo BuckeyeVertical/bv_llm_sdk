@@ -30,6 +30,7 @@ class AgentConfig:
     toolset: str = "full"  # see toolsets.py; use "core" for small models
     num_ctx: int = 32768  # Ollama context window; the full toolset alone is ~7k tokens
     think: bool | str | None = None  # Ollama: True/False, or "low"/"medium"/"high" (gpt-oss)
+    vision: bool | None = None  # model can take images; None = ask Ollama / assume no elsewhere
     temperature: float = 0.2
     max_steps: int = 30  # model calls per request
     max_consecutive_errors: int = 3  # the same failing call this often ends the request

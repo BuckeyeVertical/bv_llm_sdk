@@ -75,7 +75,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--base-url", help="model server (default: Ollama on localhost:11434)")
     p.add_argument("--toolset", help="core, standard, full, or a comma list of tools")
     p.add_argument("--num-ctx", type=int, help="Ollama context window in tokens")
-    p.add_argument("--think", help="Ollama thinking: true/false or low/medium/high")
+    p.add_argument("--think", help="reasoning: true/false (Qwen-style) or low/medium/high "
+                                   "(gpt-oss); Ollama and vLLM")
+    p.add_argument("--vision", action="store_true", default=None,
+                   help="the model accepts images (needed for `look` on vLLM/OpenAI servers)")
     p.add_argument("--max-steps", type=int, help="model calls allowed per request")
     p.add_argument("--no-state", action="store_true", help="do not send the drone state line")
     p.add_argument("--once", metavar="REQUEST", help="run one request and exit")
@@ -89,7 +92,7 @@ def config_from_args(args: argparse.Namespace) -> AgentConfig:
         think = think.lower() == "true"
     return AgentConfig.from_env(
         backend=args.backend, model=args.model, base_url=args.base_url, toolset=args.toolset,
-        num_ctx=args.num_ctx, think=think, max_steps=args.max_steps,
+        num_ctx=args.num_ctx, think=think, max_steps=args.max_steps, vision=args.vision,
         state_summary=False if args.no_state else None,
     )
 

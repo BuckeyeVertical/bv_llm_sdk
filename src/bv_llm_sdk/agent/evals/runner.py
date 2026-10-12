@@ -36,6 +36,10 @@ from .world import Tracker, pose, restart_simulator
 
 RESULTS_DIR = Path("evals/results")
 
+# PX4 refusing because the simulator itself is unhealthy (its battery model
+# sometimes goes stale): a broken test bench, not a wrong answer.
+SIM_FAULTS = ("system health failures", "Battery unhealthy")
+
 
 def run_one(drone: Drone, agent: Agent, scenario: Scenario, render, restart_sim: bool) -> dict:
     """Set up, run and check one scenario. Never raises."""
@@ -53,15 +57,19 @@ def run_one(drone: Drone, agent: Agent, scenario: Scenario, render, restart_sim:
     tools: list[str] = []
     tool_args: list[dict] = []
     errors = 0
+    sim_fault = ""
 
     def on_event(event: AgentEvent):
-        nonlocal errors
+        nonlocal errors, sim_fault
         render(event)
         if event.kind == "tool_call":
             tools.append(event.data["name"])
             tool_args.append(event.data["args"])
         elif event.kind == "tool_result" and not event.data["result"].get("ok", True):
             errors += 1
+            text = str(event.data["result"].get("error", ""))
+            if any(f in text for f in SIM_FAULTS):
+                sim_fault = text
 
     agent.on_event = on_event
     agent.reset()
@@ -93,7 +101,13 @@ def run_one(drone: Drone, agent: Agent, scenario: Scenario, render, restart_sim:
                     reply=reply, tools=tools, tool_args=tool_args, errors=errors,
                     places=dict(drone.places))
     passed, detail = scenario.check(result)
-    return {**record, "outcome": "PASS" if passed else "FAIL", "detail": detail,
+    outcome = "PASS" if passed else "FAIL"
+    if not passed and sim_fault:
+        outcome, detail = "ERROR", f"simulator fault: {sim_fault[:100]}"
+        if restart_sim:
+            print("  simulator unhealthy; restarting it")
+            restart_simulator()
+    return {**record, "outcome": outcome, "detail": detail,
             "seconds": round(seconds, 1), "tool_calls": len(tools), "tool_errors": errors,
             "tools": tools, "reply": reply,
             "path_m": round(result.track.path_m, 1)}
@@ -131,6 +145,7 @@ def main(argv: list[str] | None = None) -> int:
     out_path = _results_path(config)
     meta = {"backend": config.backend, "model": config.model, "toolset": config.toolset,
             "think": config.think, "num_ctx": config.num_ctx, "label": args.label,
+            "vision": model.supports_vision,
             "started": time.strftime("%Y-%m-%dT%H:%M:%S")}
     rows = []
     with connect() as drone, out_path.open("w") as out:

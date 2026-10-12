@@ -119,7 +119,12 @@ class Agent:
         elif "__invalid_arguments__" in call.args:
             content = {"ok": False, "error": call.args["__invalid_arguments__"]}
         else:
-            args = coerce(call.args, self._input_schemas[call.name])
+            schema = self._input_schemas[call.name]
+            # Some servers' tool parsers fill a no-argument call with junk
+            # (vLLM's gpt-oss parser sends {"": ...}); drop what cannot be a
+            # parameter rather than fail the call.
+            args = {k: v for k, v in call.args.items() if k} if schema["properties"] else {}
+            args = coerce(args, schema)
             content = self.executor(self.drone, call.name, args)
         image = content.pop("image_for_model", None)
         result = ToolResult(call.id, call.name, content, image)
