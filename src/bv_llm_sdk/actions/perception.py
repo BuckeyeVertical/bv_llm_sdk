@@ -31,8 +31,10 @@ PHOTO_DIR = Path("photos")
 _CONFIRM_FRAMES = 2
 # Overlap between neighbouring search_area lanes, as a share of image width.
 _LANE_OVERLAP = 0.3
-# survey_area treats same-label sightings this close together as one object.
-_SAME_OBJECT_M = 4.0
+# survey_area treats sightings this close together as one object. Positions
+# estimated in forward flight are off by up to a few metres, so one object
+# seen from two lanes can land ~5 m apart.
+_SAME_OBJECT_M = 6.0
 
 
 def _save(frame: Frame, detections: list[Detection] | None = None, tag: str = "photo") -> str:

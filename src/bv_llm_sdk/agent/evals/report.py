@@ -27,7 +27,7 @@ def load(paths: list[Path]) -> list[dict]:
 
 def _model_key(row: dict) -> str:
     key = f"{row['backend']}:{row['model']}"
-    if row.get("think") not in (None, False):
+    if row.get("think") is not None:
         key += f" think={row['think']}"
     if row.get("toolset") not in (None, "full"):
         key += f" [{row['toolset']}]"

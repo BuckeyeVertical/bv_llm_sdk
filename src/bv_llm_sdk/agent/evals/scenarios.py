@@ -138,8 +138,11 @@ def counted_one(r: Result):
 
 
 def route_under_limit(r: Result):
+    # The outcome is what matters: all five points visited (the shortest tour
+    # is ~60 m, so under ~40 m means points were skipped) within the limit.
+    # Whether the model used the planning tools is recorded, not required.
     planned = r.used("plan_route", "measure_route")
-    ok = planned and r.track.path_m <= 110 and r.track.path_m >= 40
+    ok = 40 <= r.track.path_m <= 110
     return ok, f"flew {r.track.path_m:.0f} m, planned={planned}"
 
 
