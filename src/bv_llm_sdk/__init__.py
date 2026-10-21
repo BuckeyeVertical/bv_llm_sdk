@@ -1,3 +1,3 @@
-from .actions import arm, takeoff, disarm, rtl, move
+from .actions import arm, takeoff, disarm, rtl, get_position, move
 
-__all__ = ["arm", "takeoff", "disarm", "rtl", "move"]
+__all__ = ["arm", "takeoff", "disarm", "rtl", get_position, move]
