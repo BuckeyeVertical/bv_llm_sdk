@@ -165,7 +165,7 @@ def land(timeout_s: float = 60.0) -> None:
             if (
                 message is not None
                 and message.relative_alt / 1000.0
-                >= -_ALTITUDE_TOLERANCE_M
+                <= _ALTITUDE_TOLERANCE_M
             ):
                 return
 
