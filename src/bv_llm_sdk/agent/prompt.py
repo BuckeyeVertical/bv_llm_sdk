@@ -1,7 +1,7 @@
 """What the model is told: the robot's prompt plus the agent's own rules.
 
 The system prompt has two halves. The toolkit's ``prompt`` says what the
-robot is and how its world works (see ``toolkits/drone.py``). ``AGENT_RULES``
+robot is and how its world works (see ``toolkits/drone/``). ``AGENT_RULES``
 below is how any tool-using agent should behave, whatever the robot.
 """
 

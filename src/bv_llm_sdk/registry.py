@@ -11,16 +11,13 @@ schema the LLM sees is built from the function itself:
   ``Args:``,
 - parameters with defaults are optional.
 
-So to add a tool, write a normal function with type hints and a Google-style
-docstring, decorate it, and import its module from ``bv_llm_sdk/__init__.py``.
-Return a dict describing what happened; ``run_tool`` turns it into JSON for
-the model and turns a ``ToolError`` (``DroneError`` is one) into
+Each robot has its own ``ToolRegistry`` (the drone's is in
+``toolkits/drone/tools.py``). To add a tool, write a normal function with type
+hints and a Google-style docstring, decorate it with that registry's ``tool``,
+and make sure its module is imported. Return a dict describing what happened;
+``call`` turns a ``ToolError`` (``DroneError`` is one) into
 ``{"ok": false, "error": ...}`` so the model can read the failure and decide
 what to do next.
-
-Each robot has its own ``ToolRegistry``. The module-level ``tool``,
-``TOOLS``, ``tool_schemas``, ``call_tool``... are the drone's; another robot
-makes its own registry and decorates with ``@arm_tools.tool``.
 """
 
 from __future__ import annotations
@@ -217,13 +214,3 @@ def _image_for_model(path: str, max_width: int = 1280) -> bytes:
     scale = max_width / image.shape[1]
     image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
     return cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 85])[1].tobytes()
-
-
-# The drone's tools, under the names the drone SDK has always used.
-DRONE_TOOLS = ToolRegistry()
-TOOLS = DRONE_TOOLS.tools
-tool = DRONE_TOOLS.tool
-tool_schemas = DRONE_TOOLS.schemas
-call_tool = DRONE_TOOLS.call
-run_tool = DRONE_TOOLS.run
-run_tool_blocks = DRONE_TOOLS.run_blocks

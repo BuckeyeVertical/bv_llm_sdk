@@ -13,7 +13,7 @@ from typing import Literal, TypedDict
 
 from .. import geo
 from ..drone import Drone, DroneError
-from ..registry import tool
+from ..tools import tool
 from ..telemetry import battery_verdict, get_position
 from ._common import (
     check_geofence,

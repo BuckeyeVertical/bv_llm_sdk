@@ -2,7 +2,7 @@
 
 Every tool in this package takes a ``Drone`` as its first argument::
 
-    from bv_llm_sdk import connect, takeoff, move, land
+    from bv_llm_sdk.toolkits.drone import connect, takeoff, move, land
 
     with connect() as drone:
         takeoff(drone, 10)
@@ -47,7 +47,7 @@ import threading
 import time
 from typing import Any
 
-from .registry import ToolError
+from ...registry import ToolError
 
 # PX4 speaks MAVLink 2 and the "common" dialect. pymavlink otherwise defaults
 # to MAVLink 1 and ArduPilot's dialect.

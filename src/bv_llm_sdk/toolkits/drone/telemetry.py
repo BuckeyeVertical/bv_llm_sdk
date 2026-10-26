@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from . import geo
 from .drone import Drone, mav
-from .registry import tool
+from .tools import tool
 
 
 def _home(drone: Drone):

@@ -19,7 +19,7 @@ from pathlib import Path
 from .drone import DroneError
 
 # models/ at the repo root (gitignored). Override with BV_YOLO_MODEL.
-DEFAULT_MODEL = Path(__file__).resolve().parents[2] / "models" / "yolo11m.pt"
+DEFAULT_MODEL = Path(__file__).resolve().parents[4] / "models" / "yolo11m.pt"
 # Objects are small from altitude, so run above YOLO's default 640.
 IMAGE_SIZE = int(os.environ.get("BV_YOLO_IMGSZ", "1280"))
 

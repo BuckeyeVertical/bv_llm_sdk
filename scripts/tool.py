@@ -15,7 +15,7 @@ with "+" to run them in sequence on one connection.
 import json
 import sys
 
-from bv_llm_sdk import TOOLS, call_tool, connect, tool_schemas
+from bv_llm_sdk.toolkits.drone import TOOLS, call_tool, connect, tool_schemas
 
 
 def parse_value(text: str):

@@ -4,9 +4,9 @@ import json
 
 import pytest
 
-from bv_llm_sdk import TOOLS, run_tool, tool_schemas
-from bv_llm_sdk import geo
-from bv_llm_sdk.drone import mav
+from bv_llm_sdk.toolkits.drone import TOOLS, run_tool, tool_schemas
+from bv_llm_sdk.toolkits.drone import geo
+from bv_llm_sdk.toolkits.drone.drone import mav
 
 
 def test_every_tool_has_a_valid_schema():
@@ -71,7 +71,7 @@ def test_dialect_is_px4s():
 
 
 def _frame(heading_deg):
-    from bv_llm_sdk.camera import Frame
+    from bv_llm_sdk.toolkits.drone.camera import Frame
 
     return Frame(b"", 1920, 1080, 1148.2, 1148.2, 960, 540, 0, 0.0,
                  36.2, -96.0, 14.5, heading_deg)
@@ -97,7 +97,7 @@ def test_waypoint_list_schema():
 
 
 def test_shapes_close_on_the_start():
-    from bv_llm_sdk.actions.routes import _shape_points
+    from bv_llm_sdk.toolkits.drone.actions.routes import _shape_points
 
     for shape in ("triangle", "square", "pentagon", "hexagon", "star", "circle", "figure_eight"):
         for clockwise in (True, False):
@@ -114,7 +114,7 @@ def test_shapes_close_on_the_start():
 def test_color_ignores_background_and_prefers_clothes():
     cv2 = pytest.importorskip("cv2")
     np = pytest.importorskip("numpy")
-    from bv_llm_sdk.vision import Detection, dominant_color
+    from bv_llm_sdk.toolkits.drone.vision import Detection, dominant_color
 
     image = np.zeros((200, 200, 3), np.uint8)
     image[:] = (40, 120, 60)  # grass (BGR)

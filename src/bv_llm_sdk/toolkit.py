@@ -3,7 +3,7 @@
 The agent loop never touches a robot directly. It gets a ``Toolkit``: the
 robot's tools, the part of the system prompt that describes its world, a
 line describing its state now, and a way to stop it safely. The drone is one
-toolkit (``toolkits/drone.py``); a robot arm would be another:
+toolkit (``toolkits/drone/``); a robot arm would be another:
 
     arm_tools = ToolRegistry()
 

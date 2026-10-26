@@ -24,10 +24,10 @@ import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-from ...toolkits.drone import DroneToolkit
-from ..agent import Agent
-from ..cli import build_parser, config_from_args
-from ..models import ModelError, make_model
+from ..toolkit import DroneToolkit
+from ....agent import Agent
+from ....agent.cli import build_parser, config_from_args
+from ....agent.models import ModelError, make_model
 
 # Requests a team might send, each needing several model calls.
 REQUESTS = [

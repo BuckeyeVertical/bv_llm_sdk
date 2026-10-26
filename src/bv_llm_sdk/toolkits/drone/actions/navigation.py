@@ -12,7 +12,7 @@ import time
 
 from .. import geo
 from ..drone import MAV_CMD_DO_ORBIT, Drone, DroneError, mav
-from ..registry import tool
+from ..tools import tool
 from ..telemetry import get_position, heading_deg
 from ._common import fly_to, ground_amsl_m, require_airborne, stop
 

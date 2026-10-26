@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Callable
 
-from ... import geo
+from .. import geo
 from .world import FOREST_PAD, PERSON, Pose, Track, hovering, on_pad
 
 
