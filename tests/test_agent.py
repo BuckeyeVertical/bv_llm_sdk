@@ -361,6 +361,7 @@ def test_openai_thinking_options():
 
 
 def test_agent_drives_any_toolkit():
+    from bv_llm_sdk.agent.prompt import AGENT_RULES
     from bv_llm_sdk.registry import ToolError, ToolRegistry
     from bv_llm_sdk.toolkit import Toolkit
 
@@ -397,7 +398,7 @@ def test_agent_drives_any_toolkit():
     assert arm["holding"] is True
     assert agent.tool_names == ["close_gripper"]
     assert agent.system_prompt.startswith("You control a robot arm.")
-    assert "Do not stop halfway" in agent.system_prompt
+    assert agent.system_prompt.endswith(AGENT_RULES)
     assert agent.transcript[0].text.startswith("[Arm state: holding=False]")
     results = [m for m in agent.transcript if isinstance(m, ToolResult)]
     assert results[0].content == {"ok": True, "force_n": 5.0}
