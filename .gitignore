@@ -2,6 +2,6 @@ __pycache__/
 *.py[cod]
 .venv/
 .env
-models/
+/models/
 photos/
 evals/results/
