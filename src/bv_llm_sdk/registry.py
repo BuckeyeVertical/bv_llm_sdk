@@ -5,16 +5,22 @@ schema the LLM sees is built from the function itself:
 
 - the tool name is the function name,
 - the description is the docstring up to ``Args:``,
-- each parameter after ``drone`` becomes an input, typed from its annotation
-  (float, int, bool, str, Literal[...], list[...], or a TypedDict for an
-  object) and described by its line under ``Args:``,
+- each parameter after the first (the robot: ``drone``, ``arm``...) becomes
+  an input, typed from its annotation (float, int, bool, str, Literal[...],
+  list[...], or a TypedDict for an object) and described by its line under
+  ``Args:``,
 - parameters with defaults are optional.
 
 So to add a tool, write a normal function with type hints and a Google-style
 docstring, decorate it, and import its module from ``bv_llm_sdk/__init__.py``.
 Return a dict describing what happened; ``run_tool`` turns it into JSON for
-the model and turns a ``DroneError`` into ``{"ok": false, "error": ...}`` so
-the model can read the failure and decide what to do next.
+the model and turns a ``ToolError`` (``DroneError`` is one) into
+``{"ok": false, "error": ...}`` so the model can read the failure and decide
+what to do next.
+
+Each robot has its own ``ToolRegistry``. The module-level ``tool``,
+``TOOLS``, ``tool_schemas``, ``call_tool``... are the drone's; another robot
+makes its own registry and decorates with ``@arm_tools.tool``.
 """
 
 from __future__ import annotations
@@ -27,17 +33,100 @@ import types
 import typing
 from typing import Any, Callable, Literal
 
-from .drone import Drone, DroneError
-
-TOOLS: dict[str, Callable[..., Any]] = {}
-
 _JSON_TYPES = {float: "number", int: "integer", bool: "boolean", str: "string"}
 
 
-def tool(fn: Callable[..., Any]) -> Callable[..., Any]:
-    """Register ``fn`` as an LLM tool. Its first parameter must be the drone."""
-    TOOLS[fn.__name__] = fn
-    return fn
+class ToolError(RuntimeError):
+    """A tool could not do what it was asked. The message says why."""
+
+
+class ToolRegistry:
+    """The tools of one robot, by name."""
+
+    def __init__(self) -> None:
+        self.tools: dict[str, Callable[..., Any]] = {}
+
+    def tool(self, fn: Callable[..., Any]) -> Callable[..., Any]:
+        """Register ``fn`` as an LLM tool. Its first parameter must be the robot."""
+        self.tools[fn.__name__] = fn
+        return fn
+
+    def schemas(
+        self,
+        format: Literal["anthropic", "openai"] = "anthropic",
+        names: list[str] | None = None,
+    ) -> list[dict]:
+        """Registered tools, in the shape the chosen LLM API expects.
+
+        ``names`` limits the list to those tools, in that order; unknown names
+        raise ``KeyError``. Leave it out for every tool.
+
+        ``"anthropic"`` gives ``{name, description, input_schema}`` for the
+        Messages API ``tools=`` argument. ``"openai"`` gives
+        ``{type: "function", function: {name, description, parameters}}``.
+        """
+        out = []
+        for name in names if names is not None else self.tools:
+            description, schema = _input_schema(self.tools[name])
+            if format == "openai":
+                out.append({
+                    "type": "function",
+                    "function": {"name": name, "description": description, "parameters": schema},
+                })
+            else:
+                out.append({"name": name, "description": description, "input_schema": schema})
+        return out
+
+    def call(self, robot: Any, name: str, args: dict[str, Any] | None = None) -> dict:
+        """Run a tool by name and return its result as a dict, never raising.
+
+        Failures come back as ``{"ok": False, "error": "..."}`` so an agent loop
+        can hand them straight to the model.
+        """
+        fn = self.tools.get(name)
+        if fn is None:
+            return {"ok": False, "error": f"unknown tool {name!r}. Known: {sorted(self.tools)}"}
+        try:
+            result = fn(robot, **(args or {}))
+        except (ToolError, TypeError, ValueError) as exc:
+            return {"ok": False, "error": str(exc)}
+        except Exception as exc:  # a tool bug or input it did not expect
+            # One bad call must not take down the agent loop; report it instead.
+            return {"ok": False, "error": f"{name} failed: {type(exc).__name__}: {exc}"}
+        return {"ok": True, **(result or {})}
+
+    def run(self, robot: Any, name: str, args: dict[str, Any] | None = None) -> str:
+        """``call``, serialised to the JSON string an LLM tool result wants.
+
+        Text only. Use ``run_blocks`` to also hand images (from ``look``)
+        to a vision model.
+        """
+        result = self.call(robot, name, args)
+        result.pop("image_for_model", None)
+        return json.dumps(result)
+
+    def run_blocks(
+        self, robot: Any, name: str, args: dict[str, Any] | None = None
+    ) -> list[dict]:
+        """``call`` as Anthropic tool_result content blocks.
+
+        A JSON text block, plus an image block when the tool returned an image
+        meant for the model (``look`` does). Pass the list as the ``content`` of
+        a ``tool_result``.
+        """
+        result = self.call(robot, name, args)
+        image_path = result.pop("image_for_model", None)
+        blocks: list[dict] = [{"type": "text", "text": json.dumps(result)}]
+        if image_path:
+            blocks.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/jpeg",
+                    "data": base64.b64encode(_image_for_model(image_path)).decode(),
+                },
+            })
+        return blocks
 
 
 def _split_docstring(doc: str) -> tuple[str, dict[str, str]]:
@@ -97,7 +186,7 @@ def _input_schema(fn: Callable[..., Any]) -> tuple[str, dict[str, Any]]:
     hints = typing.get_type_hints(fn)
     properties: dict[str, Any] = {}
     required: list[str] = []
-    params = list(inspect.signature(fn).parameters.values())[1:]  # skip drone
+    params = list(inspect.signature(fn).parameters.values())[1:]  # skip the robot
     for param in params:
         schema = _json_schema(hints[param.name])
         if param.name in arg_docs:
@@ -114,86 +203,6 @@ def _input_schema(fn: Callable[..., Any]) -> tuple[str, dict[str, Any]]:
     }
 
 
-def tool_schemas(
-    format: Literal["anthropic", "openai"] = "anthropic",
-    names: list[str] | None = None,
-) -> list[dict]:
-    """Registered tools, in the shape the chosen LLM API expects.
-
-    ``names`` limits the list to those tools, in that order; unknown names
-    raise ``KeyError``. Leave it out for every tool.
-
-    ``"anthropic"`` gives ``{name, description, input_schema}`` for the
-    Messages API ``tools=`` argument. ``"openai"`` gives
-    ``{type: "function", function: {name, description, parameters}}``.
-    """
-    out = []
-    for name in names if names is not None else TOOLS:
-        description, schema = _input_schema(TOOLS[name])
-        if format == "openai":
-            out.append({
-                "type": "function",
-                "function": {"name": name, "description": description, "parameters": schema},
-            })
-        else:
-            out.append({"name": name, "description": description, "input_schema": schema})
-    return out
-
-
-def call_tool(drone: Drone, name: str, args: dict[str, Any] | None = None) -> dict:
-    """Run a tool by name and return its result as a dict, never raising.
-
-    Failures come back as ``{"ok": False, "error": "..."}`` so an agent loop
-    can hand them straight to the model.
-    """
-    fn = TOOLS.get(name)
-    if fn is None:
-        return {"ok": False, "error": f"unknown tool {name!r}. Known: {sorted(TOOLS)}"}
-    try:
-        result = fn(drone, **(args or {}))
-    except (DroneError, TypeError, ValueError) as exc:
-        return {"ok": False, "error": str(exc)}
-    except Exception as exc:  # a tool bug or input it did not expect
-        # One bad call must not take down the agent loop; report it instead.
-        return {"ok": False, "error": f"{name} failed: {type(exc).__name__}: {exc}"}
-    return {"ok": True, **(result or {})}
-
-
-def run_tool(drone: Drone, name: str, args: dict[str, Any] | None = None) -> str:
-    """``call_tool``, serialised to the JSON string an LLM tool result wants.
-
-    Text only. Use ``run_tool_blocks`` to also hand images (from ``look``)
-    to a vision model.
-    """
-    result = call_tool(drone, name, args)
-    result.pop("image_for_model", None)
-    return json.dumps(result)
-
-
-def run_tool_blocks(
-    drone: Drone, name: str, args: dict[str, Any] | None = None
-) -> list[dict]:
-    """``call_tool`` as Anthropic tool_result content blocks.
-
-    A JSON text block, plus an image block when the tool returned an image
-    meant for the model (``look`` does). Pass the list as the ``content`` of
-    a ``tool_result``.
-    """
-    result = call_tool(drone, name, args)
-    image_path = result.pop("image_for_model", None)
-    blocks: list[dict] = [{"type": "text", "text": json.dumps(result)}]
-    if image_path:
-        blocks.append({
-            "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": "image/jpeg",
-                "data": base64.b64encode(_image_for_model(image_path)).decode(),
-            },
-        })
-    return blocks
-
-
 def _image_for_model(path: str, max_width: int = 1280) -> bytes:
     """The JPEG at ``path``, shrunk to max_width if OpenCV is available."""
     data = open(path, "rb").read()
@@ -208,3 +217,13 @@ def _image_for_model(path: str, max_width: int = 1280) -> bytes:
     scale = max_width / image.shape[1]
     image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
     return cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 85])[1].tobytes()
+
+
+# The drone's tools, under the names the drone SDK has always used.
+DRONE_TOOLS = ToolRegistry()
+TOOLS = DRONE_TOOLS.tools
+tool = DRONE_TOOLS.tool
+tool_schemas = DRONE_TOOLS.schemas
+call_tool = DRONE_TOOLS.call
+run_tool = DRONE_TOOLS.run
+run_tool_blocks = DRONE_TOOLS.run_blocks

@@ -9,7 +9,8 @@ from bv_llm_sdk.agent.args import coerce, extract_text_tool_calls, parse_argumen
 from bv_llm_sdk.agent.messages import (
     AssistantMessage, ToolCall, ToolResult, UserMessage, MAX_RESULT_CHARS,
 )
-from bv_llm_sdk.agent.toolsets import CORE, STANDARD, toolset
+from bv_llm_sdk.agent.toolsets import toolset
+from bv_llm_sdk.toolkits.drone import CORE, STANDARD, DroneToolkit
 from bv_llm_sdk.registry import TOOLS, tool_schemas
 
 
@@ -49,7 +50,7 @@ def make(replies, executor=None, **config):
     config.setdefault("state_summary", False)
     model = FakeModel(replies)
     events = []
-    agent = Agent(None, model, AgentConfig(**config), on_event=events.append,
+    agent = Agent(DroneToolkit(), model, AgentConfig(**config), on_event=events.append,
                   executor=executor or FakeExecutor())
     return agent, model, events
 
@@ -214,10 +215,12 @@ def test_long_results_are_truncated():
 
 def test_toolsets():
     assert set(CORE) <= set(STANDARD) <= set(TOOLS)
-    assert toolset("full") == list(TOOLS)
-    assert toolset("takeoff, land") == ["takeoff", "land"]
+    drone = DroneToolkit()
+    assert toolset("full", drone) == list(TOOLS)
+    assert toolset("core", drone) == CORE
+    assert toolset("takeoff, land", drone) == ["takeoff", "land"]
     with pytest.raises(ValueError):
-        toolset("bogus_tool")
+        toolset("bogus_tool", drone)
     core_tokens = len(json.dumps(tool_schemas("openai", CORE))) / 4
     assert core_tokens < 2000
 
@@ -355,3 +358,48 @@ def test_openai_thinking_options():
     assert opts(None) == {}
     assert opts(False) == {"extra_body": {"chat_template_kwargs": {"enable_thinking": False}}}
     assert opts("low") == {"reasoning_effort": "low"}
+
+
+def test_agent_drives_any_toolkit():
+    from bv_llm_sdk.agent.prompt import AGENT_RULES
+    from bv_llm_sdk.registry import ToolError, ToolRegistry
+    from bv_llm_sdk.toolkit import Toolkit
+
+    arm_tools = ToolRegistry()
+
+    @arm_tools.tool
+    def close_gripper(arm: dict, force_n: float = 10.0) -> dict:
+        """Close the gripper.
+
+        Args:
+            force_n: Grip force in newtons.
+        """
+        if arm["holding"]:
+            raise ToolError("already holding something")
+        arm["holding"] = True
+        return {"force_n": force_n}
+
+    class ArmToolkit(Toolkit):
+        name = "arm"
+        registry = arm_tools
+        prompt = "You control a robot arm."
+
+        def state(self):
+            return f"Arm state: holding={self.robot['holding']}"
+
+    arm = {"holding": False}
+    model = FakeModel([
+        AssistantMessage(tool_calls=[call("close_gripper", "a", force_n="5")]),
+        AssistantMessage(tool_calls=[call("close_gripper", "b")]),
+        AssistantMessage(text="Gripped."),
+    ])
+    agent = Agent(ArmToolkit(arm), model, AgentConfig())
+    assert agent.run("grab it") == "Gripped."
+    assert arm["holding"] is True
+    assert agent.tool_names == ["close_gripper"]
+    assert agent.system_prompt.startswith("You control a robot arm.")
+    assert agent.system_prompt.endswith(AGENT_RULES)
+    assert agent.transcript[0].text.startswith("[Arm state: holding=False]")
+    results = [m for m in agent.transcript if isinstance(m, ToolResult)]
+    assert results[0].content == {"ok": True, "force_n": 5.0}
+    assert results[1].content == {"ok": False, "error": "already holding something"}

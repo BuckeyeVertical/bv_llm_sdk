@@ -1,43 +1,33 @@
-"""Named subsets of the tools to offer a model.
+"""Choosing which of a toolkit's tools to offer a model.
 
-Every tool schema costs prompt tokens (the full set is about 7k) and every
-extra tool is another chance for a small model to pick the wrong one. So
-small models get "core", mid-size "standard", and strong models "full".
+Every tool schema costs prompt tokens and every extra tool is another chance
+for a small model to pick the wrong one, so toolkits name smaller subsets
+(the drone has "core" and "standard"). "full" is always every tool.
 """
 
 from __future__ import annotations
 
-from ..registry import TOOLS
-
-CORE = [
-    "get_status", "takeoff", "land", "move", "move_relative", "turn", "set_heading",
-    "set_altitude", "goto_location", "return_to_launch", "hold", "wait",
-]
-
-STANDARD = CORE + [
-    "get_position", "get_battery", "preflight_check", "set_speed", "orbit", "fly_shape",
-    "fly_waypoints", "draw", "measure_route", "plan_route", "face_location", "fly_home", "land_at",
-    "save_location", "list_saved_locations", "goto_saved_location",
-    "detect_objects", "search_for_object", "search_area", "fly_to_object", "take_photo",
-]
+from ..toolkit import Toolkit
 
 
-def toolset(name: str) -> list[str]:
-    """Tool names for a toolset: "core", "standard", "full", or a comma list."""
-    if name == "core":
-        return list(CORE)
-    if name == "standard":
-        return list(STANDARD)
+def toolset(name: str, toolkit: Toolkit) -> list[str]:
+    """Tool names for a toolset: one the toolkit names, "full", or a comma list."""
+    tools = toolkit.registry.tools
     if name == "full":
-        return list(TOOLS)
+        return list(tools)
+    if name in toolkit.toolsets:
+        return list(toolkit.toolsets[name])
     names = [n.strip() for n in name.split(",") if n.strip()]
-    unknown = [n for n in names if n not in TOOLS]
+    unknown = [n for n in names if n not in tools]
     if unknown or not names:
+        known = ", ".join([*toolkit.toolsets, "full"])
         raise ValueError(
-            f"unknown toolset or tools {unknown or name!r}. Use core, standard, full, "
+            f"unknown toolset or tools {unknown or name!r}. Use {known}, "
             "or a comma-separated list of tool names."
         )
     return names
 
 
-TOOLSETS = ("core", "standard", "full")
+def is_named(name: str, toolkit: Toolkit) -> bool:
+    """Whether ``name`` is a named toolset rather than a hand-picked list."""
+    return name == "full" or name in toolkit.toolsets

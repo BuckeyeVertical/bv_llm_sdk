@@ -1,60 +1,35 @@
-"""What the model is told: the system prompt and a live state line."""
+"""What the model is told: the robot's prompt plus the agent's own rules.
+
+The system prompt has two halves. The toolkit's ``prompt`` says what the
+robot is and how its world works (see ``toolkits/drone.py``). ``AGENT_RULES``
+below is how any tool-using agent should behave, whatever the robot.
+"""
 
 from __future__ import annotations
 
-from ..drone import Drone
+from ..toolkit import Toolkit
 
-# TODO: write the system prompt. It is sent before every conversation and is
-# the only thing the model knows about its job besides the tool descriptions.
+# TODO: write the agent's rules: how any tool-using agent should behave,
+# whatever robot it drives. (What the drone is and how its world works is the
+# other half of the prompt, PROMPT in toolkits/drone.py.)
 #
-# The one-liner below runs, but the model will fumble: it does not know which
-# way is "forward", lands when nobody asked, makes up coordinates, and quits
-# halfway through multi-step requests. Fix that by telling it:
+# The one-liner below runs, but the model will quit halfway through
+# multi-step requests, retry the same failing call forever, and report what it
+# expected instead of what happened. Tell it:
 #
-#   1. Who it is and what it does (a drone pilot that acts by calling tools,
-#      then reports back).
-#   2. How the world works: altitude is metres above launch; headings are
-#      compass degrees (0 = north, 90 = east); "forward/left/right" are relative
-#      to where the drone faces; the camera points straight down; every tool
-#      blocks until the drone is done; a failed tool returns
-#      {"ok": false, "error": "..."}.
-#   3. Rules: check get_status when unsure (each request starts with a
-#      [Drone state] line); never invent coordinates; finish the whole request
-#      in order; don't repeat a failing call, fix the cause or explain it;
-#      stay hovering when done unless told to land; refuse dangerous or
-#      impossible requests.
-#   4. How to answer: short, and only what the tool results actually say.
-#
-# Then measure it. Run the evals, read the failures, and add a rule for each
-# mistake you see:
-#   uv run --extra agent --extra vision scripts/agent_eval.py --tags quick
-#
-# Tip: when the model keeps doing math wrong, the fix is usually "use tool X
-# and trust its answer", not "be careful".
-SYSTEM_PROMPT = """\
-You are a drone pilot. Use the tools to do what the user asks.
+#   1. Its job: people ask in plain language; it acts by calling tools, then
+#      says briefly what happened.
+#   2. How tools behave: each blocks until done, so calls happen in order; a
+#      failed tool returns {"ok": false, "error": "..."}, so read the error and
+#      fix the cause or explain it, never repeat the same failing call.
+#   3. That a [... state] line at the start of a request says where things stood.
+#   4. Finish the whole request in order; refuse dangerous or impossible ones.
+#   5. How to answer: short, and only what the tool results actually say.
+AGENT_RULES = """\
+Use the tools to do what the user asks.
 """
 
 
-def state_summary(drone: Drone) -> str | None:
-    """One line describing the drone now, or None if telemetry is missing."""
-    from ..telemetry import get_status
-
-    try:
-        s = get_status(drone)
-    except Exception:
-        return None
-    parts = [
-        "armed" if s["armed"] else "disarmed",
-        s["landed_state"].lower().replace("_", " "),
-        f"mode {s['flight_mode']}",
-        f"altitude {s['altitude_m']:.1f} m",
-        f"heading {s['heading_deg']:.0f}°",
-    ]
-    if "north_of_home_m" in s:
-        parts.append(f"{s['north_of_home_m']:.0f} m N / {s['east_of_home_m']:.0f} m E of home")
-    if "battery_percent" in s:
-        parts.append(f"battery {s['battery_percent']}%")
-    if drone.places:
-        parts.append("saved places: " + ", ".join(drone.places))
-    return "Drone state: " + ", ".join(parts)
+def system_prompt(toolkit: Toolkit) -> str:
+    """The full system prompt for an agent driving this toolkit."""
+    return f"{toolkit.prompt.rstrip()}\n\n{AGENT_RULES}"

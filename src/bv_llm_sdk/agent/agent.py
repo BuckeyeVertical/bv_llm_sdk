@@ -1,13 +1,16 @@
 """The agent loop: a request in, tool calls out, until the job is done.
 
-    agent = Agent(drone, make_model(config), config, on_event=print)
+    agent = Agent(DroneToolkit(drone), make_model(config), config, on_event=print)
     agent.run("take off to 10 m and fly a square")
     agent.run("now land")          # same conversation, it remembers
 
 Each run() appends to one conversation. The model is called, its tool calls
-are run one at a time in order (each tool blocks until the drone is done),
+are run one at a time in order (each tool blocks until the robot is done),
 their results go back to the model, and this repeats until the model answers
 without calling a tool. Limits stop a confused model from looping forever.
+
+The loop knows nothing about drones: everything robot-specific comes from
+the toolkit (see ``bv_llm_sdk/toolkit.py``).
 """
 
 from __future__ import annotations
@@ -16,44 +19,45 @@ import json
 import time
 from typing import Any, Callable
 
-from ..drone import Drone
-from ..registry import call_tool, tool_schemas
+from ..toolkit import Toolkit
 from .args import coerce, extract_text_tool_calls
 from .config import AgentConfig
 from .events import AgentEvent, EventHandler, ignore
 from .messages import AssistantMessage, Message, ToolCall, ToolResult, UserMessage
 from .models.base import ChatModel
-from .prompt import SYSTEM_PROMPT, state_summary
-from .toolsets import toolset
+from .prompt import system_prompt as build_system_prompt
+from .toolsets import is_named, toolset
 
-Executor = Callable[[Drone, str, dict], dict]
+# (robot, tool name, args) -> result dict. Defaults to the toolkit's registry.
+Executor = Callable[[Any, str, dict], dict]
 
 
 class Agent:
     def __init__(
         self,
-        drone: Drone | None,
+        toolkit: Toolkit,
         model: ChatModel,
         config: AgentConfig | None = None,
         on_event: EventHandler = ignore,
-        executor: Executor = call_tool,
-        system_prompt: str = SYSTEM_PROMPT,
+        executor: Executor | None = None,
+        system_prompt: str | None = None,
     ):
-        self.drone = drone
+        self.toolkit = toolkit
         self.model = model
         self.config = config or AgentConfig()
         self.on_event = on_event
-        self.executor = executor
-        self.system_prompt = system_prompt
-        self.tool_names = toolset(self.config.toolset)
-        if not model.supports_vision and self.config.toolset in ("standard", "full"):
-            # `look` hands the model an image; a text-only model can only
-            # pretend to have seen it.
-            self.tool_names = [n for n in self.tool_names if n != "look"]
-        self.schemas = tool_schemas(model.schema_format, self.tool_names)
+        self.executor = executor or toolkit.registry.call
+        self.system_prompt = system_prompt or build_system_prompt(toolkit)
+        self.tool_names = toolset(self.config.toolset, toolkit)
+        if not model.supports_vision and is_named(self.config.toolset, toolkit):
+            # Image tools would hand a text-only model a picture it can only
+            # pretend to have seen.
+            self.tool_names = [n for n in self.tool_names if n not in toolkit.vision_tools]
+        self.schemas = toolkit.registry.schemas(model.schema_format, self.tool_names)
         # The JSON schema of each tool's input, for argument coercion.
         self._input_schemas = {
-            name: tool_schemas("anthropic", [name])[0]["input_schema"] for name in self.tool_names
+            s["name"]: s["input_schema"]
+            for s in toolkit.registry.schemas("anthropic", self.tool_names)
         }
         self.transcript: list[Message] = []
 
@@ -68,8 +72,8 @@ class Agent:
             reply = self._loop(text)
         except KeyboardInterrupt:
             self._close_open_calls("interrupted by the user")
-            self._hold()
-            reply = self._finish("Interrupted. The drone is holding position.")
+            self._stop_robot()
+            reply = self._finish(f"Interrupted. The {self.toolkit.name} has been stopped.")
             self._emit("error", text=reply)
             return reply
         self._emit("done", text=reply)
@@ -106,6 +110,7 @@ class Agent:
              {max_steps} steps without finishing. The request may need to
              be broken up.")
 
+        Nothing here is drone-specific: the same loop drives any toolkit.
         Check it with: uv run pytest tests/test_agent.py
         """
         failures: dict[str, int] = {}  # for _is_stuck; one dict per request
@@ -113,11 +118,11 @@ class Agent:
         # TODO: your loop here.
         raise NotImplementedError("write the agent loop in Agent._loop (agent/agent.py)")
 
-    # --- provided helpers ---------------------------------------------------
+    # --- provided helpers ------------------------------------------------------------
 
     def _user_message(self, text: str) -> UserMessage:
-        """The request, prefixed with a line about the drone's current state."""
-        prefix = state_summary(self.drone) if self.config.state_summary and self.drone else None
+        """The request, prefixed with a line about the robot's current state."""
+        prefix = self.toolkit.state() if self.config.state_summary else None
         return UserMessage(f"[{prefix}]\n{text}" if prefix else text)
 
     def _ask_model(self) -> AssistantMessage:
@@ -162,7 +167,7 @@ class Agent:
             # parameter rather than fail the call.
             args = {k: v for k, v in call.args.items() if k} if schema["properties"] else {}
             args = coerce(args, schema)
-            content = self.executor(self.drone, call.name, args)
+            content = self.executor(self.toolkit.robot, call.name, args)
         image = content.pop("image_for_model", None)
         result = ToolResult(call.id, call.name, content, image)
         self._emit("tool_result", id=call.id, name=call.name, result=content,
@@ -181,17 +186,12 @@ class Agent:
                         )
                 break
 
-    def _hold(self) -> None:
-        """Stop the drone where it is, if it is flying. Never raises."""
-        if self.drone is None:
-            return
+    def _stop_robot(self) -> None:
+        """Make the robot safe. Never raises."""
         try:
-            from ..actions._common import stop
-
-            if self.drone.armed and self.drone.landed_state != "ON_GROUND":
-                stop(self.drone)
+            self.toolkit.stop()
         except Exception as exc:  # the user interrupted; do not make it worse
-            self._emit("error", text=f"could not hold position: {exc}")
+            self._emit("error", text=f"could not stop the {self.toolkit.name}: {exc}")
 
     def _finish(self, text: str) -> str:
         """End the request with a message of the agent's own."""

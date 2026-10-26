@@ -180,29 +180,38 @@ they are the parts that make it an agent (about an hour):
    ```bash
    uv run pytest tests/test_agent.py
    ```
-2. **The system prompt**: `SYSTEM_PROMPT` in
-   [`src/bv_llm_sdk/agent/prompt.py`](src/bv_llm_sdk/agent/prompt.py). The
-   placeholder flies, badly. Run the quick evals against the simulator, read
-   what failed, and add a rule for each mistake:
+2. **The system prompt**, in two halves the agent joins together:
+   - `AGENT_RULES` in
+     [`src/bv_llm_sdk/agent/prompt.py`](src/bv_llm_sdk/agent/prompt.py): how
+     any tool-using agent should behave, whatever the robot.
+   - `PROMPT` in
+     [`src/bv_llm_sdk/toolkits/drone.py`](src/bv_llm_sdk/toolkits/drone.py):
+     what the drone is and how its world works.
+
+   The placeholders fly, badly. Run the quick evals against the simulator,
+   read what failed, and add a rule to the right half for each mistake:
    ```bash
    uv run --extra agent --extra vision scripts/agent_eval.py --tags quick
    ```
 
 You don't need to open anything else, but these are worth a look:
 `models/ollama.py` (what one model call really sends), `messages.py` (the
-conversation), and `registry.py` (how a Python function becomes a tool
-schema).
+conversation), `registry.py` (how a Python function becomes a tool
+schema) and `toolkit.py` (everything the agent knows about a robot).
 
 Finished early? Write your own tool (see [Adding a tool](#adding-a-tool)) and
 ask the agent to use it, or try `--toolset core` with a small model and see
-what changes. The finished agent is on the `ConstructI/O` branch.
+what changes. Or sketch a second robot (see [Other robots](#other-robots)):
+your loop drives it unchanged. The finished agent is on the `ConstructI/O`
+branch.
 
 ## The agent
 
 `bv_llm_sdk.agent` turns plain-language requests into tool calls. It runs the
 loop (model → tools → results → model) until the job is done, keeps the
 conversation across requests, and stops a confused model from looping. It
-works with three backends:
+flies the drone by default but can drive any robot (see
+[Other robots](#other-robots)). It works with three backends:
 
 | `--backend` | For | Default model |
 | --- | --- | --- |
@@ -251,11 +260,11 @@ Options (also settable as `BV_AGENT_<NAME>` environment variables):
 ### From Python
 
 ```python
-from bv_llm_sdk import connect
 from bv_llm_sdk.agent import Agent, AgentConfig, make_model
+from bv_llm_sdk.toolkits.drone import DroneToolkit
 
 config = AgentConfig(backend="ollama", model="qwen3:32b", toolset="standard")
-with connect() as drone:
+with DroneToolkit.connect() as drone:
     agent = Agent(drone, make_model(config), config, on_event=print)
     print(agent.run("Take off, search the field to the north for a person, then come back."))
 ```
@@ -324,6 +333,56 @@ To build your own loop, `tool_schemas("anthropic" | "openai")` gives the tool
 definitions and `run_tool(drone, name, args)` runs one and returns JSON
 (`run_tool_blocks` returns Anthropic content blocks, including images from
 `look`).
+
+### Other robots
+
+The agent loop knows nothing about drones. It drives a `Toolkit`
+([`src/bv_llm_sdk/toolkit.py`](src/bv_llm_sdk/toolkit.py)): the robot's tools,
+its half of the system prompt (what it is, how its world works, rules for its
+tools), a state line sent with each request, and how to stop it safely. The
+agent adds the half of the prompt every robot shares
+([`agent/prompt.py`](src/bv_llm_sdk/agent/prompt.py)). The drone is
+[`toolkits/drone.py`](src/bv_llm_sdk/toolkits/drone.py).
+
+A robot arm, say, needs its own registry, tools and toolkit:
+
+```python
+from bv_llm_sdk.registry import ToolError, ToolRegistry
+from bv_llm_sdk.toolkit import Toolkit
+
+arm_tools = ToolRegistry()
+
+@arm_tools.tool
+def move_to(arm: Arm, x_m: float, y_m: float, z_m: float) -> dict:
+    """Move the gripper to a point, in metres from the arm's base.
+
+    Args:
+        x_m: Forward from the base.
+        y_m: Left of the base.
+        z_m: Up from the table.
+    """
+    if not arm.reachable(x_m, y_m, z_m):
+        raise ToolError(f"({x_m}, {y_m}, {z_m}) is out of reach")
+    arm.move_to(x_m, y_m, z_m)
+    return {"position_m": arm.position()}
+
+class ArmToolkit(Toolkit):
+    name = "arm"
+    registry = arm_tools
+    prompt = "You control a six-axis robot arm on a table. ..."
+
+    def state(self):
+        return f"Arm state: gripper at {self.robot.position()}"
+
+    def stop(self):
+        self.robot.halt()
+```
+
+Then add it to `TOOLKITS` in
+[`toolkits/__init__.py`](src/bv_llm_sdk/toolkits/__init__.py) for
+`bv-agent --toolkit arm`, or pass `ArmToolkit(arm)` to `Agent` directly. The
+lessons above carry over: put verdicts like `reachable` in the tools, and
+make results show what actually happened (did the grasp hold?).
 
 ## Developing
 

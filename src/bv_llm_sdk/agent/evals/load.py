@@ -24,6 +24,7 @@ import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
+from ...toolkits.drone import DroneToolkit
 from ..agent import Agent
 from ..cli import build_parser, config_from_args
 from ..models import ModelError, make_model
@@ -130,7 +131,7 @@ def run_level(config, users: int, requests_per_user: int, base_url: str | None) 
     lock = threading.Lock()
 
     def user(i: int) -> None:
-        agent = Agent(None, model, config, executor=fake_tool)
+        agent = Agent(DroneToolkit(), model, config, executor=fake_tool)
         for k in range(requests_per_user):
             text = REQUESTS[(i + k) % len(REQUESTS)]
             t = time.time()

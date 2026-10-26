@@ -23,11 +23,12 @@ DEFAULT_BASE_URLS = {
 
 @dataclass
 class AgentConfig:
+    toolkit: str = "drone"  # which robot; see toolkits/__init__.py
     backend: Backend = "ollama"
     model: str | None = None  # None = DEFAULT_MODELS[backend]
     base_url: str | None = None  # None = DEFAULT_BASE_URLS[backend]
     api_key: str | None = None  # Claude/OpenAI; read from their usual env vars if unset
-    toolset: str = "full"  # see toolsets.py; use "core" for small models
+    toolset: str = "full"  # see toolsets.py; the drone has "core" for small models
     num_ctx: int = 32768  # Ollama context window; the full toolset alone is ~7k tokens
     think: bool | str | None = None  # Ollama: True/False, or "low"/"medium"/"high" (gpt-oss)
     vision: bool | None = None  # model can take images; None = ask Ollama / assume no elsewhere

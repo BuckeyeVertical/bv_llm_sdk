@@ -26,6 +26,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from ...drone import Drone, DroneError, connect
+from ...toolkits.drone import DroneToolkit
 from ..agent import Agent
 from ..cli import Renderer, build_parser, config_from_args
 from ..config import AgentConfig
@@ -149,7 +150,7 @@ def main(argv: list[str] | None = None) -> int:
             "started": time.strftime("%Y-%m-%dT%H:%M:%S")}
     rows = []
     with connect() as drone, out_path.open("w") as out:
-        agent = Agent(drone, model, config)
+        agent = Agent(DroneToolkit(drone), model, config)
         for rep in range(1, args.repeat + 1):
             for s in scenarios:
                 print(f"\n=== [{rep}/{args.repeat}] {s.name}")
