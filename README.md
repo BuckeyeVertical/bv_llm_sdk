@@ -63,7 +63,7 @@ Every tool is a plain Python function that takes a connected `drone` first.
 Open one connection and pass it to every tool:
 
 ```python
-from bv_llm_sdk import connect, takeoff, move, turn, orbit, return_to_launch
+from bv_llm_sdk.toolkits.drone import connect, takeoff, move, turn, orbit, return_to_launch
 
 with connect() as drone:
     takeoff(drone, altitude_m=10)
@@ -185,7 +185,7 @@ they are the parts that make it an agent (about an hour):
      [`src/bv_llm_sdk/agent/prompt.py`](src/bv_llm_sdk/agent/prompt.py): how
      any tool-using agent should behave, whatever the robot.
    - `PROMPT` in
-     [`src/bv_llm_sdk/toolkits/drone.py`](src/bv_llm_sdk/toolkits/drone.py):
+     [`src/bv_llm_sdk/toolkits/drone/toolkit.py`](src/bv_llm_sdk/toolkits/drone/toolkit.py):
      what the drone is and how its world works.
 
    The placeholders fly, badly. Run the quick evals against the simulator,
@@ -320,7 +320,7 @@ Results so far (Ollama on Pitzer V100s; see [evals/RESULTS.md](evals/RESULTS.md)
 newer than OSC's module (see evals/RESULTS.md).
 
 To add a scenario, append to `SCENARIOS` in
-`src/bv_llm_sdk/agent/evals/scenarios.py`: the request in a person's words, a
+`src/bv_llm_sdk/toolkits/drone/evals/scenarios.py`: the request in a person's words, a
 starting state, and a check on the drone's actual state.
 
 On Pitzer, which has no Ollama module, bv_llm_host runs OSC's Ollama
@@ -342,7 +342,7 @@ its half of the system prompt (what it is, how its world works, rules for its
 tools), a state line sent with each request, and how to stop it safely. The
 agent adds the half of the prompt every robot shares
 ([`agent/prompt.py`](src/bv_llm_sdk/agent/prompt.py)). The drone is
-[`toolkits/drone.py`](src/bv_llm_sdk/toolkits/drone.py).
+[`toolkits/drone/`](src/bv_llm_sdk/toolkits/drone/).
 
 A robot arm, say, needs its own registry, tools and toolkit:
 
@@ -386,17 +386,36 @@ make results show what actually happened (did the grasp hold?).
 
 ## Developing
 
+### Layout
+
+```text
+src/bv_llm_sdk/
+├── registry.py        ToolRegistry: Python functions -> LLM tool schemas
+├── toolkit.py         Toolkit: everything the agent knows about one robot
+├── agent/             the agent loop, prompt rules, model backends, bv-agent CLI
+└── toolkits/
+    └── drone/         one robot, self-contained
+        ├── drone.py       the PX4 link (Drone, connect)
+        ├── tools.py       the drone's ToolRegistry (@tool, call_tool...)
+        ├── actions/       flight, navigation, routes, perception, payload tools
+        ├── telemetry.py   status and position tools
+        ├── camera.py, vision.py, geo.py
+        ├── toolkit.py     DroneToolkit: prompt, toolsets, state line, stop
+        └── evals/         scenarios in the forest world
+```
+
+Nothing under `agent/` imports a robot. A new robot goes in its own
+`toolkits/<name>/`.
+
 ### Adding a tool
 
 Write a function with type hints and a Google-style docstring and decorate it
 with `@tool`. The LLM schema is generated from the function name, the
 docstring, and the `Args:` section, so the docstring *is* the prompt. Then
-import it in `src/bv_llm_sdk/actions/__init__.py`.
+import it in `src/bv_llm_sdk/toolkits/drone/actions/__init__.py`.
 
 ```python
-from bv_llm_sdk.drone import Drone
-from bv_llm_sdk.registry import tool
-from bv_llm_sdk.actions import move
+from bv_llm_sdk.toolkits.drone import Drone, move, tool
 
 @tool
 def fly_square(drone: Drone, side_m: float = 10.0) -> dict:
@@ -414,7 +433,7 @@ Low-level building blocks for new tools live on `Drone`:
 `drone.command_long(...)` / `drone.command_int(...)` send a command and wait for
 PX4 to accept it, `drone.latest("GLOBAL_POSITION_INT")` / `drone.wait_for(...)`
 read telemetry, and `drone.armed`, `drone.flight_mode`, `drone.landed_state`
-give the vehicle state. The comments at the top of `drone.py` explain the
+give the vehicle state. The comments at the top of `toolkits/drone/drone.py` explain the
 non-obvious parts of the PX4 link.
 
 ### Tests

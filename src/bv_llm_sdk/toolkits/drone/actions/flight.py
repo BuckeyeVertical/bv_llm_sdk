@@ -6,7 +6,7 @@ import math
 import time
 
 from ..drone import Drone, DroneError, mav
-from ..registry import tool
+from ..tools import tool
 from ..telemetry import get_position
 from ._common import (
     fly_to,

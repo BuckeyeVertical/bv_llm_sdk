@@ -11,7 +11,7 @@ from bv_llm_sdk.agent.messages import (
 )
 from bv_llm_sdk.agent.toolsets import toolset
 from bv_llm_sdk.toolkits.drone import CORE, STANDARD, DroneToolkit
-from bv_llm_sdk.registry import TOOLS, tool_schemas
+from bv_llm_sdk.toolkits.drone import TOOLS, tool_schemas
 
 
 class FakeModel:
@@ -304,7 +304,7 @@ def test_config_from_env(monkeypatch):
 
 
 def test_limit_verdict():
-    from bv_llm_sdk.actions.routes import _limit_verdict
+    from bv_llm_sdk.toolkits.drone.actions.routes import _limit_verdict
 
     assert _limit_verdict(234.5, 100)["within_limit"] is False
     assert "OVER" in _limit_verdict(234.5, 100)["limit_verdict"]
@@ -319,7 +319,7 @@ def test_coerce_maps_point_pairs_to_objects():
 
 
 def test_call_tool_never_raises():
-    from bv_llm_sdk.registry import call_tool
+    from bv_llm_sdk.toolkits.drone import call_tool
 
     result = call_tool(None, "draw", {"points": [{"x": 1, "y": 2}]})
     assert result["ok"] is False and "x_m" in result["error"]

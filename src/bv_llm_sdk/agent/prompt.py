@@ -1,7 +1,7 @@
 """What the model is told: the robot's prompt plus the agent's own rules.
 
 The system prompt has two halves. The toolkit's ``prompt`` says what the
-robot is and how its world works (see ``toolkits/drone.py``). ``AGENT_RULES``
+robot is and how its world works (see ``toolkits/drone/``). ``AGENT_RULES``
 below is how any tool-using agent should behave, whatever the robot.
 """
 
@@ -11,7 +11,7 @@ from ..toolkit import Toolkit
 
 # TODO: write the agent's rules: how any tool-using agent should behave,
 # whatever robot it drives. (What the drone is and how its world works is the
-# other half of the prompt, PROMPT in toolkits/drone.py.)
+# other half of the prompt, PROMPT in toolkits/drone/toolkit.py.)
 #
 # The one-liner below runs, but the model will quit halfway through
 # multi-step requests, retry the same failing call forever, and report what it

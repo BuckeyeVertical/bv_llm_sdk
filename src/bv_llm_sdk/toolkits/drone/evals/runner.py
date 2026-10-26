@@ -25,13 +25,13 @@ import time
 from dataclasses import asdict
 from pathlib import Path
 
-from ...drone import Drone, DroneError, connect
-from ...toolkits.drone import DroneToolkit
-from ..agent import Agent
-from ..cli import Renderer, build_parser, config_from_args
-from ..config import AgentConfig
-from ..events import AgentEvent
-from ..models import ModelError, make_model
+from ..drone import Drone, DroneError, connect
+from ..toolkit import DroneToolkit
+from ....agent import Agent
+from ....agent.cli import Renderer, build_parser, config_from_args
+from ....agent.config import AgentConfig
+from ....agent.events import AgentEvent
+from ....agent.models import ModelError, make_model
 from .scenarios import Result, Scenario, select
 from .world import Tracker, pose, restart_simulator
 

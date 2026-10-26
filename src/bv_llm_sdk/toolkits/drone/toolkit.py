@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from .. import actions  # noqa: F401  (registers the drone tools)
-from ..drone import Drone, connect
-from ..registry import DRONE_TOOLS
-from ..toolkit import Toolkit
+from ...toolkit import Toolkit
+from . import actions  # noqa: F401  (registers the drone tools)
+from .drone import Drone, connect
+from .tools import DRONE_TOOLS
 
 # Every tool schema costs prompt tokens (the full set is about 7k) and every
 # extra tool is another chance for a small model to pick the wrong one. So
@@ -72,7 +72,7 @@ class DroneToolkit(Toolkit):
 
     def state(self) -> str | None:
         """One line describing the drone now, or None if telemetry is missing."""
-        from ..telemetry import get_status
+        from .telemetry import get_status
 
         drone = self.robot
         if drone is None:
@@ -98,7 +98,7 @@ class DroneToolkit(Toolkit):
 
     def stop(self) -> None:
         """Hover where it is, if it is flying."""
-        from ..actions._common import stop
+        from .actions._common import stop
 
         drone = self.robot
         if drone is not None and drone.armed and drone.landed_state != "ON_GROUND":

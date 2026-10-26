@@ -19,7 +19,7 @@ from pathlib import Path
 from .. import geo
 from ..camera import Frame
 from ..drone import Drone, DroneError
-from ..registry import tool
+from ..tools import tool
 from ..telemetry import _home, battery_verdict, get_position
 from ..vision import Detection, get_detector, resolve_color
 from ._common import fly_to, ground_amsl_m, reposition, require_airborne, stop

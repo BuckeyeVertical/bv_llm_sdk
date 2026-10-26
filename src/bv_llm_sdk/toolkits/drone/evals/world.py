@@ -14,9 +14,9 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 
-from ... import geo
-from ...actions import goto_location, land, set_heading, takeoff
-from ...drone import Drone, DroneError
+from .. import geo
+from ..actions import goto_location, land, set_heading, takeoff
+from ..drone import Drone, DroneError
 
 # The bv_bevy forest world: its launch pad, and the mannequin lying 18 m
 # north and 14 m east of it.
