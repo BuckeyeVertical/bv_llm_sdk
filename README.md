@@ -166,6 +166,37 @@ uv run scripts/tool.py                       # list every tool
 uv run scripts/tool.py takeoff altitude_m=10 + move north_m=15 + turn degrees=90 + land
 ```
 
+## Build your agent
+
+This branch is the starter. The drone toolkit, the model backends, the chat
+CLI and the evals are done; two pieces of the agent are left for you, and
+they are the parts that make it an agent (about an hour):
+
+1. **The loop**: `Agent._loop` in
+   [`src/bv_llm_sdk/agent/agent.py`](src/bv_llm_sdk/agent/agent.py). Ask the
+   model, run the tools it asks for, give it the results, repeat until it
+   answers in plain text. The docstring lists the helpers and steps. Done
+   when the tests pass:
+   ```bash
+   uv run pytest tests/test_agent.py
+   ```
+2. **The system prompt**: `SYSTEM_PROMPT` in
+   [`src/bv_llm_sdk/agent/prompt.py`](src/bv_llm_sdk/agent/prompt.py). The
+   placeholder flies, badly. Run the quick evals against the simulator, read
+   what failed, and add a rule for each mistake:
+   ```bash
+   uv run --extra agent --extra vision scripts/agent_eval.py --tags quick
+   ```
+
+You don't need to open anything else, but these are worth a look:
+`models/ollama.py` (what one model call really sends), `messages.py` (the
+conversation), and `registry.py` (how a Python function becomes a tool
+schema).
+
+Finished early? Write your own tool (see [Adding a tool](#adding-a-tool)) and
+ask the agent to use it, or try `--toolset core` with a small model and see
+what changes. The finished agent is on the `ConstructI/O` branch.
+
 ## The agent
 
 `bv_llm_sdk.agent` turns plain-language requests into tool calls. It runs the

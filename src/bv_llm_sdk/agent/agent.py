@@ -64,49 +64,86 @@ class Agent:
     def run(self, text: str) -> str:
         """Carry out one request and return the model's final reply."""
         self._emit("user", text=text)
-        prefix = state_summary(self.drone) if self.config.state_summary and self.drone else None
-        self.transcript.append(UserMessage(f"[{prefix}]\n{text}" if prefix else text))
-        failures: dict[str, int] = {}
         try:
-            for _ in range(self.config.max_steps):
-                reply = self.model.complete(self.system_prompt, self.transcript, self.schemas)
-                if not reply.tool_calls and self.config.text_tool_fallback:
-                    calls = extract_text_tool_calls(reply.text, set(self.tool_names))
-                    if calls:
-                        reply = AssistantMessage(text="", tool_calls=calls)
-                self.transcript.append(reply)
-                if reply.text:
-                    self._emit("assistant_text", text=reply.text)
-                if not reply.tool_calls:
-                    self._emit("done", text=reply.text)
-                    return reply.text
-
-                stuck = None
-                for call in reply.tool_calls:
-                    result = self._execute(call)
-                    self.transcript.append(result)
-                    if result.ok:
-                        failures.clear()
-                        continue
-                    key = call.name + json.dumps(call.args, sort_keys=True, default=str)
-                    failures[key] = failures.get(key, 0) + 1
-                    if failures[key] >= self.config.max_consecutive_errors:
-                        stuck = result
-                if stuck is not None:
-                    return self._finish(
-                        f"I stopped: {stuck.name} kept failing with "
-                        f"\"{stuck.content.get('error')}\"."
-                    )
-            return self._finish(
-                f"I stopped after {self.config.max_steps} steps without finishing. "
-                "The request may need to be broken up."
-            )
+            reply = self._loop(text)
         except KeyboardInterrupt:
             self._close_open_calls("interrupted by the user")
             self._hold()
-            return self._finish("Interrupted. The drone is holding position.", kind="error")
+            reply = self._finish("Interrupted. The drone is holding position.")
+            self._emit("error", text=reply)
+            return reply
+        self._emit("done", text=reply)
+        return reply
 
-    # --- internals ----------------------------------------------------------
+    def _loop(self, text: str) -> str:
+        """The agent loop. Returns the text to show the user.
+
+        TODO: write this. It is the whole idea of an agent: let the model ask
+        for tools, run them, show it the results, and repeat until it answers
+        in plain text. Everything you need is a helper below or on self:
+
+            self.transcript          the conversation, a list you append to
+            self._user_message(text) the user's request as a message
+            self._ask_model()        one model turn -> AssistantMessage
+                                       (.text, .tool_calls)
+            self._execute(call)      run one ToolCall -> ToolResult
+            self._is_stuck(call, result, failures)
+                                     True when the same call keeps failing
+            self._finish(text)       record a message of your own and return it
+            self.config.max_steps    how many model turns one request may take
+
+        Steps:
+          1. Append the user's message to the transcript.
+          2. Up to max_steps times:
+               a. Ask the model, and append its reply to the transcript.
+               b. No tool calls in the reply? The job is done: return its text.
+               c. Otherwise execute each tool call in order and append each
+                  result. (The model sees the results on its next turn.)
+               d. If _is_stuck(...) says a call keeps failing, give up with
+                  _finish(f'I stopped: {call.name} kept failing with
+                  "{result.content.get("error")}".')
+          3. Out of steps? Give up with _finish(f"I stopped after
+             {max_steps} steps without finishing. The request may need to
+             be broken up.")
+
+        Check it with: uv run pytest tests/test_agent.py
+        """
+        failures: dict[str, int] = {}  # for _is_stuck; one dict per request
+
+        # TODO: your loop here.
+        raise NotImplementedError("write the agent loop in Agent._loop (agent/agent.py)")
+
+    # --- provided helpers ---------------------------------------------------
+
+    def _user_message(self, text: str) -> UserMessage:
+        """The request, prefixed with a line about the drone's current state."""
+        prefix = state_summary(self.drone) if self.config.state_summary and self.drone else None
+        return UserMessage(f"[{prefix}]\n{text}" if prefix else text)
+
+    def _ask_model(self) -> AssistantMessage:
+        """One model turn: send the conversation and tools, get the reply."""
+        reply = self.model.complete(self.system_prompt, self.transcript, self.schemas)
+        if not reply.tool_calls and self.config.text_tool_fallback:
+            # Some models write tool calls as text instead of real calls.
+            calls = extract_text_tool_calls(reply.text, set(self.tool_names))
+            if calls:
+                reply = AssistantMessage(text="", tool_calls=calls)
+        if reply.text:
+            self._emit("assistant_text", text=reply.text)
+        return reply
+
+    def _is_stuck(self, call: ToolCall, result: ToolResult, failures: dict[str, int]) -> bool:
+        """Count identical failing calls; True once one has failed too often.
+
+        Pass the same `failures` dict for the whole request. Any success
+        resets the count.
+        """
+        if result.ok:
+            failures.clear()
+            return False
+        key = call.name + json.dumps(call.args, sort_keys=True, default=str)
+        failures[key] = failures.get(key, 0) + 1
+        return failures[key] >= self.config.max_consecutive_errors
 
     def _execute(self, call: ToolCall) -> ToolResult:
         self._emit("tool_call", id=call.id, name=call.name, args=call.args)
@@ -156,9 +193,12 @@ class Agent:
         except Exception as exc:  # the user interrupted; do not make it worse
             self._emit("error", text=f"could not hold position: {exc}")
 
-    def _finish(self, text: str, kind: str = "done") -> str:
+    def _finish(self, text: str) -> str:
+        """End the request with a message of the agent's own."""
+        # Stopping mid-reply can leave tool calls unanswered; providers reject
+        # a transcript like that on the next request.
+        self._close_open_calls("not run: the request was stopped")
         self.transcript.append(AssistantMessage(text=text))
-        self._emit(kind, text=text)
         return text
 
     def _emit(self, kind: str, **data: Any) -> None:
