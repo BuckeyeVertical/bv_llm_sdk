@@ -47,6 +47,8 @@ import threading
 import time
 from typing import Any
 
+from .registry import ToolError
+
 # PX4 speaks MAVLink 2 and the "common" dialect. pymavlink otherwise defaults
 # to MAVLink 1 and ArduPilot's dialect.
 os.environ.setdefault("MAVLINK20", "1")
@@ -73,8 +75,8 @@ mav = mavutil.mavlink
 MAV_CMD_DO_ORBIT = 34
 
 
-class DroneError(RuntimeError):
-    """A tool could not do what it was asked. The message says why."""
+class DroneError(ToolError):
+    """A drone tool could not do what it was asked. The message says why."""
 
 
 class Drone:

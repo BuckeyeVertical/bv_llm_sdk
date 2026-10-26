@@ -14,7 +14,9 @@ makes to ``run_tool(drone, name, args)``.
 from .actions import *  # noqa: F403  (registers the action tools)
 from .actions import __all__ as _actions
 from .drone import Drone, DroneError, connect
-from .registry import TOOLS, call_tool, run_tool, run_tool_blocks, tool, tool_schemas
+from .registry import (
+    TOOLS, ToolError, ToolRegistry, call_tool, run_tool, run_tool_blocks, tool, tool_schemas,
+)
 from .telemetry import (
     get_battery,
     get_distance_to,
@@ -30,6 +32,8 @@ __all__ = [
     "Drone",
     "DroneError",
     "TOOLS",
+    "ToolError",
+    "ToolRegistry",
     "tool",
     "tool_schemas",
     "call_tool",

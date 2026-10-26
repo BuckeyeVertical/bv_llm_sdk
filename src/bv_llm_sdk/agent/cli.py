@@ -1,4 +1,4 @@
-"""bv-agent: talk to the drone.
+"""bv-agent: talk to the drone (or another robot, with --toolkit).
 
     uv run --extra agent bv-agent                       # chat (Ollama via bv_llm_host)
     uv run --extra agent bv-agent --model qwen3:32b
@@ -6,7 +6,8 @@
     uv run --extra agent bv-agent --once "take off to 10 m and land"
 
 Settings also come from BV_AGENT_* environment variables (see config.py).
-Ctrl-C while the agent is working stops it and makes the drone hold.
+Ctrl-C while the agent is working stops it and makes the robot safe
+(the drone holds position).
 """
 
 from __future__ import annotations
@@ -15,22 +16,29 @@ import argparse
 import json
 import sys
 
-from ..drone import DroneError, connect
+from ..registry import ToolError
+from ..toolkits import TOOLKITS, toolkit_class
 from .agent import Agent
 from .config import AgentConfig
 from .events import AgentEvent
 from .models import ModelError, make_model
 
-HELP = """commands: /tools  /status  /places  /reset  /help  /quit
-anything else is an instruction for the drone."""
+HELP = """commands: /tools  /reset  /help  /quit{extra}
+anything else is an instruction for the {name}."""
+
+
+def _help(agent: Agent) -> str:
+    extra = "".join(f"  {c}" for c in agent.toolkit.commands)
+    return HELP.format(extra=extra, name=agent.toolkit.name)
 
 
 class Renderer:
     """Prints agent events to the terminal."""
 
-    def __init__(self, verbose: bool = False, color: bool = True):
+    def __init__(self, verbose: bool = False, color: bool = True, name: str = "drone"):
         self.verbose = verbose
         self.color = color
+        self.name = name
 
     def _c(self, code: str, text: str) -> str:
         return f"\033[{code}m{text}\033[0m" if self.color else text
@@ -50,9 +58,9 @@ class Renderer:
         elif event.kind == "assistant_text" and self.verbose:
             print(self._c("2", f"  (model) {d['text']}"), flush=True)
         elif event.kind == "done":
-            print(self._c("1", f"drone> {d['text']}"), flush=True)
+            print(self._c("1", f"{self.name}> {d['text']}"), flush=True)
         elif event.kind == "error":
-            print(self._c("31", f"drone> {d['text']}"), flush=True)
+            print(self._c("31", f"{self.name}> {d['text']}"), flush=True)
 
 
 def _short(result: dict, limit: int = 110) -> str:
@@ -69,7 +77,8 @@ def _short(result: dict, limit: int = 110) -> str:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="bv-agent", description="Fly the drone in plain language.")
+    p = argparse.ArgumentParser(prog="bv-agent", description="Drive a robot in plain language.")
+    p.add_argument("--toolkit", choices=sorted(TOOLKITS), help="which robot (default: drone)")
     p.add_argument("--backend", choices=["ollama", "openai", "anthropic"])
     p.add_argument("--model", help="e.g. gpt-oss:20b, qwen3:32b, claude-sonnet-5-5")
     p.add_argument("--base-url", help="model server (default: Ollama on localhost:11434)")
@@ -80,7 +89,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--vision", action="store_true", default=None,
                    help="the model accepts images (needed for `look` on vLLM/OpenAI servers)")
     p.add_argument("--max-steps", type=int, help="model calls allowed per request")
-    p.add_argument("--no-state", action="store_true", help="do not send the drone state line")
+    p.add_argument("--no-state", action="store_true", help="do not send the robot state line")
     p.add_argument("--once", metavar="REQUEST", help="run one request and exit")
     p.add_argument("-v", "--verbose", action="store_true", help="show full tool results")
     return p
@@ -91,7 +100,7 @@ def config_from_args(args: argparse.Namespace) -> AgentConfig:
     if think is not None and think.lower() in ("true", "false"):
         think = think.lower() == "true"
     return AgentConfig.from_env(
-        backend=args.backend, model=args.model, base_url=args.base_url, toolset=args.toolset,
+        toolkit=args.toolkit, backend=args.backend, model=args.model, base_url=args.base_url, toolset=args.toolset,
         num_ctx=args.num_ctx, think=think, max_steps=args.max_steps, vision=args.vision,
         state_summary=False if args.no_state else None,
     )
@@ -106,19 +115,19 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    render = Renderer(verbose=args.verbose, color=sys.stdout.isatty())
     try:
-        drone = connect()
-    except DroneError as exc:
+        toolkit = toolkit_class(config.toolkit).connect()
+    except (ToolError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    with drone:
-        agent = Agent(drone, model, config, on_event=render)
+    render = Renderer(verbose=args.verbose, color=sys.stdout.isatty(), name=toolkit.name)
+    with toolkit:
+        agent = Agent(toolkit, model, config, on_event=render)
         if args.once:
             return _run(agent, args.once)
-        print(f"bv-agent: {config.backend} {config.model}, {len(agent.tool_names)} tools "
-              f"({config.toolset}). {HELP}")
+        print(f"bv-agent: {toolkit.name}, {config.backend} {config.model}, "
+              f"{len(agent.tool_names)} tools ({config.toolset}). {_help(agent)}")
         while True:
             try:
                 line = input("you> ").strip()
@@ -144,22 +153,19 @@ def _run(agent: Agent, text: str) -> int:
 
 
 def _command(line: str, agent: Agent) -> str | None:
-    from ..registry import call_tool
-
     cmd = line.split()[0].lower()
     if cmd in ("/quit", "/exit", "/q"):
         return "quit"
     if cmd == "/tools":
         print(", ".join(agent.tool_names))
-    elif cmd == "/status":
-        print(json.dumps(call_tool(agent.drone, "get_status"), indent=2))
-    elif cmd == "/places":
-        print(json.dumps(call_tool(agent.drone, "list_saved_locations"), indent=2))
+    elif cmd in agent.toolkit.commands:
+        result = agent.toolkit.registry.call(agent.toolkit.robot, agent.toolkit.commands[cmd])
+        print(json.dumps(result, indent=2))
     elif cmd == "/reset":
         agent.reset()
         print("conversation cleared")
     else:
-        print(HELP)
+        print(_help(agent))
     return None
 
 
