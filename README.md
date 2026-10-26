@@ -33,25 +33,22 @@ uv sync
 ```
 Note: this project uses uv as a package manager so if your adding deps use ```uv add ...```
 
-Build Gazebo, PX4 image and bevy.
-```bash
-cd ~/ws/bv_bevy
-docker compose -f gazebo/compose.px4.yaml build
-cargo build
-```
+Set up bv_bevy (Docker or OrbStack, Rust and the build) by following its
+[Setup](https://github.com/BuckeyeVertical/bv_bevy#setup) steps; you already cloned it into
+`~/ws/bv_bevy`.
 
 ## Run simulation
 
 Start PX4 + Gazebo first:
 ```bash
 cd ~/ws/bv_bevy
-./px4.sh suas_2026
+./px4.sh --prebuilt forest
 ```
 
 In a separate terminal, start Bevy (the 3D world and camera):
 ```bash
 cd ~/ws/bv_bevy
-cargo run -- suas_2026
+cargo run --release -- forest
 ```
 
 Check the toolkit can see the drone:
