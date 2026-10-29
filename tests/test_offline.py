@@ -1,4 +1,4 @@
-"""Checks that need no simulator: schemas, geometry and error handling."""
+"""Tests that do not need the simulator."""
 
 import json
 
@@ -58,7 +58,7 @@ def test_bearing_and_wrap():
 
 def test_run_tool_reports_errors_instead_of_raising():
     assert json.loads(run_tool(None, "fly_to_the_moon"))["ok"] is False
-    # Validation happens before the drone is touched.
+    # Arguments are checked before the drone is touched.
     result = json.loads(run_tool(None, "set_speed", {"speed_m_s": 50}))
     assert result == {"ok": False, "error": "speed_m_s must be between 0.5 and 12."}
     result = json.loads(run_tool(None, "move", {"sideways_m": 3}))
@@ -78,9 +78,7 @@ def _frame(heading_deg):
 
 
 def test_pixel_to_ground_matches_camera_mounting():
-    # Measured in the forest world: 14.5 m up, an object 5.3 m north of the
-    # drone appeared ~455 px above centre when facing north, and the same
-    # distance left of centre when facing east.
+    # Values measured in the forest world.
     north, east = _frame(0).pixel_to_ground(960, 540 - 455)
     assert north == pytest.approx(5.75, abs=0.05) and east == pytest.approx(0, abs=1e-6)
     north, east = _frame(90).pixel_to_ground(960 - 455, 540)
@@ -103,10 +101,10 @@ def test_shapes_close_on_the_start():
         for clockwise in (True, False):
             points, _ = _shape_points(shape, 20.0, clockwise)
             assert points[-1] == pytest.approx((0.0, 0.0), abs=1e-6), shape
-    # A clockwise square goes forward first, then right.
+    # A clockwise square goes forward first and then right.
     square, stop_each = _shape_points("square", 10.0, True)
     assert stop_each and square[0] == pytest.approx((10, 0)) and square[1] == pytest.approx((10, 10))
-    # A figure eight's first loop is on the right when clockwise.
+    # The first loop of a clockwise figure eight is on the right.
     eight, _ = _shape_points("figure_eight", 40.0, True)
     assert max(p[1] for p in eight[:24]) == pytest.approx(20.0, abs=0.01)
 
@@ -117,9 +115,9 @@ def test_color_ignores_background_and_prefers_clothes():
     from bv_llm_sdk.toolkits.drone.vision import Detection, dominant_color
 
     image = np.zeros((200, 200, 3), np.uint8)
-    image[:] = (40, 120, 60)  # grass (BGR)
-    image[80:120, 80:120] = (200, 200, 200)  # pale "skin" fills most of the box
-    image[85:100, 85:115] = (30, 30, 160)  # a red shirt
+    image[:] = (40, 120, 60)  # Grass in BGR.
+    image[80:120, 80:120] = (200, 200, 200)  # Pale skin fills most of the box.
+    image[85:100, 85:115] = (30, 30, 160)  # A red shirt.
     box = Detection("person", 0.9, 80, 80, 120, 120)
     assert dominant_color(image, box) == "red"
     image[85:100, 85:115] = (200, 200, 200)

@@ -1,4 +1,4 @@
-"""The drone as an agent toolkit: its tools, its world, its state."""
+"""The drone toolkit for the agent."""
 
 from __future__ import annotations
 
@@ -7,9 +7,8 @@ from . import actions  # noqa: F401  (registers the drone tools)
 from .drone import Drone, connect
 from .tools import DRONE_TOOLS
 
-# Every tool schema costs prompt tokens (the full set is about 7k) and every
-# extra tool is another chance for a small model to pick the wrong one. So
-# small models get "core", mid-size "standard", and strong models "full".
+# Tool subsets by model size. Each tool costs prompt tokens and gives small models
+# another way to pick wrong.
 CORE = [
     "get_status", "takeoff", "land", "move", "move_relative", "turn", "set_heading",
     "set_altitude", "goto_location", "return_to_launch", "hold", "wait",
@@ -55,8 +54,7 @@ class DroneToolkit(Toolkit):
     registry = DRONE_TOOLS
     prompt = PROMPT
     toolsets = {"core": CORE, "standard": STANDARD}
-    # `look` hands the model an image; a text-only model can only pretend
-    # to have seen it.
+    # Text only models cannot see images so they do not get look.
     vision_tools = ("look",)
     commands = {"/status": "get_status", "/places": "list_saved_locations"}
 
@@ -71,7 +69,7 @@ class DroneToolkit(Toolkit):
             self.robot.close()
 
     def state(self) -> str | None:
-        """One line describing the drone now, or None if telemetry is missing."""
+        """Return one line about the drone state or None if telemetry is missing."""
         from .telemetry import get_status
 
         drone = self.robot
@@ -97,7 +95,7 @@ class DroneToolkit(Toolkit):
         return "Drone state: " + ", ".join(parts)
 
     def stop(self) -> None:
-        """Hover where it is, if it is flying."""
+        """Hover in place if flying."""
         from .actions._common import stop
 
         drone = self.robot

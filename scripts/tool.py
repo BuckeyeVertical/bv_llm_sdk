@@ -1,15 +1,7 @@
-"""Run any toolkit tool from the command line, the way an LLM would call it.
+"""Run a toolkit tool from the command line the same way the model calls it.
 
-Usage:
-    uv run scripts/tool.py                      # list tools
-    uv run scripts/tool.py get_status
-    uv run scripts/tool.py takeoff altitude_m=15
-    uv run scripts/tool.py move north_m=20 east_m=-5
-    uv run scripts/tool.py takeoff altitude_m=10 + turn degrees=90 + land
-
-Arguments are name=value; values are parsed as JSON where possible (so 15,
-true and null work) and as plain strings otherwise. Join several tool calls
-with "+" to run them in sequence on one connection.
+Pass each argument as name equals value. Values are read as JSON when possible and as
+plain text otherwise. Join several calls with a plus sign to run them in order.
 """
 
 import json

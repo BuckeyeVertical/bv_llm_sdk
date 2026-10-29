@@ -1,9 +1,6 @@
-"""The conversation, in a form no LLM provider owns.
+"""Conversation messages that do not depend on the model provider.
 
-The agent loop only ever builds these. Each backend in ``models/`` turns the
-list into its own wire format and its reply back into an
-``AssistantMessage``, so the loop, the tools and the tests never see
-provider details.
+Each backend converts them to its own format and converts its reply back.
 """
 
 from __future__ import annotations
@@ -39,7 +36,7 @@ class ToolResult:
     call_id: str
     name: str
     content: dict[str, Any]
-    # A photo the tool wants the model to see (from `look`).
+    # Photo the tool wants the model to see.
     image_path: str | None = None
 
     @property
@@ -47,7 +44,9 @@ class ToolResult:
         return bool(self.content.get("ok", True))
 
     def text(self, vision: bool) -> str:
-        """The result as JSON for the model, trimmed, noting unseen images."""
+        """Return the result as JSON for the model. Long results are cut and unseen images
+        are noted.
+        """
         content = dict(self.content)
         if self.image_path and not vision:
             content["note"] = (

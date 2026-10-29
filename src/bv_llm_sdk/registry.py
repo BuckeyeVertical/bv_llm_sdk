@@ -1,23 +1,9 @@
-"""Turn plain Python functions into LLM tools.
+"""Turn Python functions into LLM tools.
 
-Mark a function with ``@tool`` and it becomes available to the agent. The
-schema the LLM sees is built from the function itself:
-
-- the tool name is the function name,
-- the description is the docstring up to ``Args:``,
-- each parameter after the first (the robot: ``drone``, ``arm``...) becomes
-  an input, typed from its annotation (float, int, bool, str, Literal[...],
-  list[...], or a TypedDict for an object) and described by its line under
-  ``Args:``,
-- parameters with defaults are optional.
-
-Each robot has its own ``ToolRegistry`` (the drone's is in
-``toolkits/drone/tools.py``). To add a tool, write a normal function with type
-hints and a Google-style docstring, decorate it with that registry's ``tool``,
-and make sure its module is imported. Return a dict describing what happened;
-``call`` turns a ``ToolError`` (``DroneError`` is one) into
-``{"ok": false, "error": ...}`` so the model can read the failure and decide
-what to do next.
+Mark a function with the registry tool decorator to add it. The tool name comes from the
+function name. The description and argument help come from the docstring and the
+argument types come from the type hints. The first parameter is the robot and is not
+shown to the model. Errors are returned to the model so it can decide what to do next.
 """
 
 from __future__ import annotations
@@ -34,17 +20,17 @@ _JSON_TYPES = {float: "number", int: "integer", bool: "boolean", str: "string"}
 
 
 class ToolError(RuntimeError):
-    """A tool could not do what it was asked. The message says why."""
+    """Raised when a tool cannot do what it was asked."""
 
 
 class ToolRegistry:
-    """The tools of one robot, by name."""
+    """The tools for one robot by name."""
 
     def __init__(self) -> None:
         self.tools: dict[str, Callable[..., Any]] = {}
 
     def tool(self, fn: Callable[..., Any]) -> Callable[..., Any]:
-        """Register ``fn`` as an LLM tool. Its first parameter must be the robot."""
+        """Register a function as a tool. Its first parameter must be the robot."""
         self.tools[fn.__name__] = fn
         return fn
 
@@ -53,14 +39,8 @@ class ToolRegistry:
         format: Literal["anthropic", "openai"] = "anthropic",
         names: list[str] | None = None,
     ) -> list[dict]:
-        """Registered tools, in the shape the chosen LLM API expects.
-
-        ``names`` limits the list to those tools, in that order; unknown names
-        raise ``KeyError``. Leave it out for every tool.
-
-        ``"anthropic"`` gives ``{name, description, input_schema}`` for the
-        Messages API ``tools=`` argument. ``"openai"`` gives
-        ``{type: "function", function: {name, description, parameters}}``.
+        """Return tool schemas in the Anthropic or OpenAI format. Pass names to limit the
+        list.
         """
         out = []
         for name in names if names is not None else self.tools:
@@ -75,10 +55,8 @@ class ToolRegistry:
         return out
 
     def call(self, robot: Any, name: str, args: dict[str, Any] | None = None) -> dict:
-        """Run a tool by name and return its result as a dict, never raising.
-
-        Failures come back as ``{"ok": False, "error": "..."}`` so an agent loop
-        can hand them straight to the model.
+        """Run a tool by name and return its result as a dict. Errors are returned instead
+        of raised.
         """
         fn = self.tools.get(name)
         if fn is None:
@@ -87,17 +65,13 @@ class ToolRegistry:
             result = fn(robot, **(args or {}))
         except (ToolError, TypeError, ValueError) as exc:
             return {"ok": False, "error": str(exc)}
-        except Exception as exc:  # a tool bug or input it did not expect
-            # One bad call must not take down the agent loop; report it instead.
+        except Exception as exc:  # Any other error.
+            # One bad call should not stop the agent so report it.
             return {"ok": False, "error": f"{name} failed: {type(exc).__name__}: {exc}"}
         return {"ok": True, **(result or {})}
 
     def run(self, robot: Any, name: str, args: dict[str, Any] | None = None) -> str:
-        """``call``, serialised to the JSON string an LLM tool result wants.
-
-        Text only. Use ``run_blocks`` to also hand images (from ``look``)
-        to a vision model.
-        """
+        """Run a tool and return its result as a JSON string. Images are dropped."""
         result = self.call(robot, name, args)
         result.pop("image_for_model", None)
         return json.dumps(result)
@@ -105,11 +79,8 @@ class ToolRegistry:
     def run_blocks(
         self, robot: Any, name: str, args: dict[str, Any] | None = None
     ) -> list[dict]:
-        """``call`` as Anthropic tool_result content blocks.
-
-        A JSON text block, plus an image block when the tool returned an image
-        meant for the model (``look`` does). Pass the list as the ``content`` of
-        a ``tool_result``.
+        """Run a tool and return its result as Anthropic content blocks. Includes any
+        image.
         """
         result = self.call(robot, name, args)
         image_path = result.pop("image_for_model", None)
@@ -127,10 +98,10 @@ class ToolRegistry:
 
 
 def _split_docstring(doc: str) -> tuple[str, dict[str, str]]:
-    """Return (description, {arg: description}) from a Google-style docstring."""
+    """Split a docstring into the description and the argument descriptions."""
     doc = inspect.cleandoc(doc or "")
     sections = re.split(r"^(Args|Returns|Raises):\s*$", doc, flags=re.M)
-    # Rejoin wrapped lines; keep blank lines as paragraph breaks.
+    # Join wrapped lines but keep paragraph breaks.
     description = re.sub(r"(?<!\n)\n(?!\n)", " ", sections[0].strip())
     args: dict[str, str] = {}
     for header, body in zip(sections[1::2], sections[2::2]):
@@ -159,7 +130,7 @@ def _json_schema(annotation: Any) -> dict[str, Any]:
         (item,) = typing.get_args(annotation)
         return {"type": "array", "items": _json_schema(item)}
     if typing.is_typeddict(annotation):
-        # A TypedDict is an object; its docstring's Args: describe the keys.
+        # A TypedDict becomes an object. Its docstring describes the keys.
         description, key_docs = _split_docstring(annotation.__doc__)
         hints = typing.get_type_hints(annotation)
         properties = {}
@@ -183,7 +154,7 @@ def _input_schema(fn: Callable[..., Any]) -> tuple[str, dict[str, Any]]:
     hints = typing.get_type_hints(fn)
     properties: dict[str, Any] = {}
     required: list[str] = []
-    params = list(inspect.signature(fn).parameters.values())[1:]  # skip the robot
+    params = list(inspect.signature(fn).parameters.values())[1:]  # Skip the robot.
     for param in params:
         schema = _json_schema(hints[param.name])
         if param.name in arg_docs:
@@ -201,7 +172,7 @@ def _input_schema(fn: Callable[..., Any]) -> tuple[str, dict[str, Any]]:
 
 
 def _image_for_model(path: str, max_width: int = 1280) -> bytes:
-    """The JPEG at ``path``, shrunk to max_width if OpenCV is available."""
+    """Return the JPEG at path resized to max_width when OpenCV is installed."""
     data = open(path, "rb").read()
     try:
         import cv2

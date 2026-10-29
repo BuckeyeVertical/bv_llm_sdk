@@ -1,9 +1,4 @@
-"""Read-only tools: where the drone is and what state it is in.
-
-None of these move the vehicle, so they are always safe to call. An agent
-should call ``get_status`` before deciding what to do, and after anything
-goes wrong.
-"""
+"""Read only tools that report where the drone is and its state."""
 
 from __future__ import annotations
 
@@ -36,7 +31,7 @@ def _position(drone: Drone) -> dict:
 
 
 def heading_deg(drone: Drone) -> float:
-    """Current compass heading in degrees (0 = north, 90 = east)."""
+    """Current compass heading in degrees."""
     pos = drone.require("GLOBAL_POSITION_INT")
     if pos.hdg != 65535:
         return pos.hdg / 100.0
@@ -89,8 +84,7 @@ def get_position(drone: Drone) -> dict:
 
 
 def battery_verdict(drone: Drone, seconds: float) -> dict:
-    """Whether a job of this length fits in the battery, decided here rather
-    than left to the model's arithmetic."""
+    """Say whether a job of this length fits in the battery."""
     out: dict = {"minutes_needed": round(seconds / 60.0, 1)}
     battery = _battery(drone)
     if "battery_percent" not in battery:
@@ -191,10 +185,8 @@ def preflight_check(drone: Drone) -> dict:
     ]
     prearm_ok = bool(health & mav.MAV_SYS_STATUS_PREARM_CHECK)
     gps = drone.latest("GPS_RAW_INT")
-    # PX4's pre-arm bit already accounts for which sensors matter (the sim,
-    # for one, has no RC receiver and does not need it), so a sensor listed
-    # here only blocks flight when ready_to_arm is false. Say so in words: a
-    # bare list of "unhealthy" sensors reads to an LLM like a blocker.
+    # Unhealthy sensors only matter when the drone is not ready to arm. Say that in
+    # words so the model does not treat the list as a blocker.
     if prearm_ok:
         summary = "Ready to arm and take off."
         if unhealthy:

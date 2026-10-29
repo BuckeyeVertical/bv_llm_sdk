@@ -1,10 +1,8 @@
-"""Ollama's native chat API, e.g. the server bv_llm_host runs on OSC.
+"""Backend for the Ollama native chat API.
 
-Native rather than Ollama's OpenAI-compatible endpoint because only the
-native API can set the context window (options.num_ctx). The tool schemas
-alone are several thousand tokens, and Ollama silently drops whatever does
-not fit its (small) default window, which looks like a model that ignores
-its tools.
+The native API can set the context window and the OpenAI compatible endpoint cannot. The
+tool schemas are several thousand tokens and Ollama drops whatever does not fit in its
+small default window.
 """
 
 from __future__ import annotations
@@ -16,7 +14,7 @@ from .base import ModelError, image_b64
 
 
 class OllamaModel:
-    schema_format = "openai"  # Ollama takes OpenAI-style function schemas
+    schema_format = "openai"  # Ollama uses OpenAI style schemas.
 
     def __init__(self, config: AgentConfig):
         try:
@@ -101,7 +99,7 @@ class OllamaModel:
             try:
                 args = parse_arguments(fn.get("arguments"))
             except ValueError as exc:
-                # Keep the call so the agent can report the bad arguments back.
+                # Keep the call so the agent can report the bad arguments.
                 args = {"__invalid_arguments__": str(exc)}
             calls.append(ToolCall(raw.get("id") or new_call_id(), fn.get("name", ""), args))
         return AssistantMessage(text=message.get("content") or "", tool_calls=calls)

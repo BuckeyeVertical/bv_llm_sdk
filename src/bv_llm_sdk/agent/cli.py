@@ -1,13 +1,7 @@
-"""bv-agent: talk to the drone (or another robot, with --toolkit).
+"""Command line chat with a robot.
 
-    uv run --extra agent bv-agent                       # chat (Ollama via bv_llm_host)
-    uv run --extra agent bv-agent --model qwen3:32b
-    uv run --extra agent --extra claude bv-agent --backend anthropic
-    uv run --extra agent bv-agent --once "take off to 10 m and land"
-
-Settings also come from BV_AGENT_* environment variables (see config.py).
-Ctrl-C while the agent is working stops it and makes the robot safe
-(the drone holds position).
+Settings can also come from BV_AGENT environment variables. Pressing Ctrl C during a
+request stops the agent and makes the robot safe.
 """
 
 from __future__ import annotations
@@ -33,7 +27,7 @@ def _help(agent: Agent) -> str:
 
 
 class Renderer:
-    """Prints agent events to the terminal."""
+    """Print agent events to the terminal."""
 
     def __init__(self, verbose: bool = False, color: bool = True, name: str = "drone"):
         self.verbose = verbose
@@ -64,7 +58,7 @@ class Renderer:
 
 
 def _short(result: dict, limit: int = 110) -> str:
-    """A one-line summary of a tool result."""
+    """Summarize a tool result in one line."""
     keep = {k: v for k, v in result.items() if k not in ("ok", "latitude", "longitude",
                                                           "altitude_amsl_m")}
     for key in ("message", "found", "count", "counts"):

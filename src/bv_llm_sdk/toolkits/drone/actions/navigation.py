@@ -1,8 +1,7 @@
-"""Moving around once airborne.
+"""Move the drone while it is flying.
 
-Every tool here blocks until the drone has arrived and settled, so tools can
-be chained: ``move(drone, north_m=10)`` then ``turn(drone, 90)`` runs the turn
-only after the move is done. After each one the drone hovers in place.
+Each tool waits until the drone arrives and settles so tools can run back to back. The
+drone hovers after each one.
 """
 
 from __future__ import annotations
@@ -16,7 +15,7 @@ from ..tools import tool
 from ..telemetry import get_position, heading_deg
 from ._common import fly_to, ground_amsl_m, require_airborne, stop
 
-# Refuse moves that are almost certainly a misunderstanding.
+# Refuse moves that are almost certainly a mistake.
 _MAX_MOVE_M = 1000.0
 _MAX_ALTITUDE_M = 120.0
 _MIN_ALTITUDE_M = 2.0
@@ -173,9 +172,8 @@ def turn(drone: Drone, degrees: float) -> dict:
     require_airborne(drone)
     if abs(degrees) > 1080:
         raise DroneError("degrees must be between -1080 and 1080.")
-    # PX4 always yaws the short way to a target heading, so a 360 would do
-    # nothing and a 270 would turn 90 the other way. Turn in steps small
-    # enough that the short way is the requested way.
+    # PX4 always turns the short way. Turn in small steps so large turns go the
+    # requested way.
     steps = max(1, math.ceil(abs(degrees) / 90.0))
     start = heading_deg(drone)
     for i in range(1, steps + 1):
@@ -239,16 +237,15 @@ def orbit(
 
     drone.command_int(
         MAV_CMD_DO_ORBIT,
-        param1=radius_m if clockwise else -radius_m,  # sign sets direction
+        param1=radius_m if clockwise else -radius_m,  # Sign sets the direction.
         param2=speed_m_s,
-        param3=0,  # yaw behaviour: face the centre
+        param3=0,  # Face the center.
         lat=center_latitude,
         lon=center_longitude,
         alt_amsl_m=pos.alt / 1000.0,
     )
 
-    # Count laps by the angle swept around the centre, starting once the
-    # drone is out on the circle.
+    # Count laps by the angle swept around the center once the drone is on the circle.
     circumference = 2 * math.pi * radius_m
     start = time.time()
     deadline = start + 2.0 * (laps * circumference / speed_m_s) + 60.0

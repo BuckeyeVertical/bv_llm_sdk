@@ -1,15 +1,7 @@
 """Tools that let an LLM fly a PX4 drone.
 
-    from bv_llm_sdk.toolkits.drone import connect, takeoff, move, land
-
-    with connect() as drone:
-        takeoff(drone, 10)
-        move(drone, north_m=20)
-        land(drone)
-
-For an agent, use ``DroneToolkit``. To build your own loop, hand
-``tool_schemas()`` to the model and pass each tool call it makes to
-``run_tool(drone, name, args)``.
+Use DroneToolkit with the agent. To build your own loop give tool_schemas to the model
+and pass each tool call to run_tool.
 """
 
 from .actions import *  # noqa: F403  (registers the action tools)

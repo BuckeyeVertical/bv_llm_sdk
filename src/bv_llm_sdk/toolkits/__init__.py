@@ -1,7 +1,6 @@
-"""The robots the agent can drive, by name (``bv-agent --toolkit drone``).
+"""The robots the agent can control by name.
 
-To add a robot, write a ``Toolkit`` subclass (see ``bv_llm_sdk/toolkit.py``)
-in a module here and list it below.
+To add a robot write a Toolkit subclass in a module here and list it below.
 """
 
 from __future__ import annotations
@@ -10,8 +9,8 @@ import importlib
 
 from ..toolkit import Toolkit
 
-# name -> "module:Class", imported only when chosen, so one robot's
-# dependencies are not needed to drive another.
+# Each toolkit is imported only when chosen. One robot does not need the dependencies of
+# another.
 TOOLKITS = {
     "drone": "bv_llm_sdk.toolkits.drone:DroneToolkit",
 }

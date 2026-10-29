@@ -1,8 +1,7 @@
-"""Routes and named places: multi-point flights, shapes, and remembered spots.
+"""Routes and saved places.
 
-Places let an agent refer back to things: "remember this spot as base",
-"go back to where you saw the person". Detections save themselves as places
-automatically (see perception.py), and "home" always exists.
+Places let the agent refer back to spots it has been. Detections are saved as places and
+home always exists.
 """
 
 from __future__ import annotations
@@ -82,7 +81,7 @@ def _origin(drone: Drone) -> _Origin:
 
 
 def place_position(drone: Drone, name: str) -> tuple[float, float, float | None]:
-    """(lat, lon, altitude_m or None) of a saved place, or raise."""
+    """Return the position of a saved place or raise an error."""
     key = name.strip().lower()
     if key == "home":
         h = home(drone)
@@ -213,11 +212,9 @@ def draw(
 def _resolve_route(
     drone: Drone, waypoints: list[Waypoint], max_points: int = 100, flying: bool = True
 ) -> list[tuple[float, float, float, float]]:
-    """(lat, lon, altitude_m, hold_s) for each waypoint, all checked.
+    """Resolve and check every waypoint before the drone moves.
 
-    Resolves and checks every point before the drone moves, so a bad point
-    5 does not strand it after point 4. ``flying=False`` (planning only)
-    skips the altitude check, so a route can be planned on the ground.
+    Set flying to False to skip the altitude check when planning on the ground.
     """
     if not 1 <= len(waypoints) <= max_points:
         raise DroneError(f"give between 1 and {max_points} waypoints.")
@@ -236,14 +233,13 @@ def _resolve_route(
 
 
 def _from_start(drone: Drone, start) -> float:
-    """Horizontal metres between a start position message and now. Lets the
-    model check a closed shape really closed instead of assuming it did."""
+    """Return the horizontal distance in meters from a start position to now."""
     now = drone.require("GLOBAL_POSITION_INT")
     return round(geo.distance(start.lat / 1e7, start.lon / 1e7, now.lat / 1e7, now.lon / 1e7), 1)
 
 
 def _legs(drone: Drone, route, return_home: bool) -> list[float]:
-    """Leg lengths in metres (3D) from the drone through the route."""
+    """Return the length of each leg from the drone through the route."""
     pos = drone.require("GLOBAL_POSITION_INT")
     points = [(pos.lat / 1e7, pos.lon / 1e7, pos.relative_alt / 1000.0)]
     points += [(lat, lon, alt) for lat, lon, alt, _ in route]
@@ -258,12 +254,12 @@ def _legs(drone: Drone, route, return_home: bool) -> list[float]:
 
 def _estimate_s(drone: Drone, distance_m: float, route) -> float:
     speed = drone.cruise_speed_m_s or 5.0
-    # Each stop costs a few seconds of braking and settling.
+    # Each stop adds a few seconds to brake and settle.
     return distance_m / speed + 4.0 * len(route) + sum(r[3] for r in route)
 
 
 def _limit_verdict(total_m: float, max_total_m: float | None) -> dict:
-    """Whether a distance is within a limit, stated outright."""
+    """Say whether a distance is within a limit."""
     if max_total_m is None:
         return {}
     within = total_m <= max_total_m
@@ -349,7 +345,7 @@ def plan_route(
     if len(rest) <= 7:
         best = min((prefix + list(p) for p in itertools.permutations(rest)), key=length)
     else:
-        # Too many for brute force: nearest neighbour, then 2-opt.
+        # Too many points to try every order. Use nearest neighbor and then 2 opt.
         best, todo = prefix[:], rest[:]
         while todo:
             nxt = min(todo, key=lambda i: length(best + [i]))
@@ -378,7 +374,7 @@ def plan_route(
 def _shape_points(
     shape: str, size_m: float, clockwise: bool, width_m: float | None = None
 ) -> tuple[list[tuple[float, float]], bool]:
-    """(forward, right) offsets from the start, and whether to stop at each."""
+    """Return shape points as offsets from the start and whether to stop at each."""
     turn = 1 if clockwise else -1
     if shape == "rectangle":
         long_side, short_side = size_m, width_m if width_m is not None else size_m / 2
@@ -407,11 +403,7 @@ def _shape_points(
 
 
 def _arc(center, radius, start_deg, direction, steps=24):
-    """Points around a full circle, as (forward, right), ending at the start.
-
-    Angles are bearings from the centre in the drone's frame (0 = forward,
-    90 = right); direction +1 goes clockwise seen from above.
-    """
+    """Return points around a full circle that end at the start."""
     points = []
     for i in range(1, steps + 1):
         b = math.radians(start_deg + direction * 360.0 * i / steps)

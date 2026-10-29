@@ -1,13 +1,8 @@
-"""The eval scenarios: requests people will make, and how to tell whether the
-drone really did them.
+"""Eval scenarios and their checks.
 
-Each scenario has a starting state (``setup``), one or more requests sent in
-the same conversation (``turns``), and a ``check`` that looks at what the
-drone actually did, never only at what the model said. Tags pick subsets:
-"quick" is a fast screen for comparing many models.
-
-To add one: write a check(r: Result) -> (passed, detail) and append a
-Scenario. Keep requests in the words a person would use.
+Each scenario has a starting state and one or more requests and a check. The check looks
+at what the drone actually did and not only at what the model said. Tags pick subsets
+such as quick.
 """
 
 from __future__ import annotations
@@ -29,14 +24,14 @@ class Result:
     end: Pose
     track: Track
     seconds: float
-    reply: str  # the model's final reply to the last turn
+    reply: str  # The final reply to the last request.
     tools: list[str] = field(default_factory=list)
     tool_args: list[dict] = field(default_factory=list)
     errors: int = 0
     places: dict = field(default_factory=dict)
 
     def moved(self) -> tuple[float, float]:
-        """(north, east) metres from the start to the end."""
+        """Return the north and east distance from start to end."""
         return self.end.north - self.start.north, self.end.east - self.start.east
 
     def used(self, *names: str) -> bool:
@@ -62,7 +57,7 @@ def _says(text: str, *patterns: str) -> bool:
     return any(re.search(p, text, re.I) for p in patterns)
 
 
-# --- checks -------------------------------------------------------------------
+# Checks.
 
 def takeoff_10(r: Result):
     return r.end.armed and abs(r.end.alt - 10) <= 0.7, f"altitude {r.end.alt:.1f} m"
@@ -104,8 +99,7 @@ def closed_shape(min_path: float, min_seconds: float = 0):
 
 
 def vertical_house(r: Result):
-    # Checks a picture of about the right size stands up; it cannot check
-    # that every edge of the house was drawn.
+    # Checks that the drawing is about the right size. It cannot check every edge.
     height = r.track.max_alt - r.track.min_alt
     width = r.track.width_m
     ok = height >= 6 and width >= 6
@@ -138,9 +132,8 @@ def counted_one(r: Result):
 
 
 def route_under_limit(r: Result):
-    # The outcome is what matters: all five points visited (the shortest tour
-    # is ~60 m, so under ~40 m means points were skipped) within the limit.
-    # Whether the model used the planning tools is recorded, not required.
+    # Passes when all five points are visited within the limit. The shortest tour is
+    # about 60 meters so much less means points were skipped.
     planned = r.used("plan_route", "measure_route")
     ok = 40 <= r.track.path_m <= 110
     return ok, f"flew {r.track.path_m:.0f} m, planned={planned}"

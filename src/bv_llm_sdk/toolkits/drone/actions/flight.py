@@ -1,4 +1,4 @@
-"""Getting into the air and back down again."""
+"""Take off and land."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from ._common import (
     wait_until_landed,
 )
 
-# Close enough to the requested height to call the climb finished.
+# How close to the target height counts as done.
 _ALTITUDE_TOLERANCE_M = 0.5
 
 
@@ -39,35 +39,34 @@ def takeoff(drone: Drone, altitude_m: float = 10.0) -> dict:
         fly_to(drone, pos.lat / 1e7, pos.lon / 1e7, ground_amsl_m(drone) + altitude_m)
         return {"message": f"already flying; now at {altitude_m} m", **get_position(drone)}
 
-    # Arm and take off back to back: PX4 disarms an idle armed drone after a
-    # few seconds, which is shorter than an LLM may take between two calls.
+    # Arm right before takeoff. PX4 disarms an idle drone after a few seconds.
     if not drone.armed:
         drone.command_long(mav.MAV_CMD_COMPONENT_ARM_DISARM, 1)
         drone.wait_armed(True)
 
-    # MAV_CMD_NAV_TAKEOFF wants an altitude above mean sea level, but callers
-    # think in height above the ground. GLOBAL_POSITION_INT carries both.
+    # Takeoff needs altitude above sea level. Add the ground elevation to the requested
+    # height.
     drone.command_long(
         mav.MAV_CMD_NAV_TAKEOFF,
-        0.0,  # param1: minimum pitch, fixed-wing only
+        0.0,  # Minimum pitch. Fixed wing only.
         0.0,
         0.0,
-        math.nan,  # param4: yaw, NaN keeps the current heading
-        math.nan,  # param5/6: lat/lon, NaN takes off straight up
+        math.nan,  # Yaw. NaN keeps the current heading.
+        math.nan,  # Latitude and longitude. NaN takes off straight up.
         math.nan,
         ground_amsl_m(drone) + altitude_m,
     )
 
-    # The ack means "accepted", not "up there". Wait for the climb.
+    # The ack only means the command was accepted. Wait for the climb.
     deadline = time.time() + 20.0 + altitude_m / 1.0
     while time.time() < deadline:
         pos = drone.wait_for("GLOBAL_POSITION_INT", timeout_s=3.0)
         if not drone.armed:
             raise DroneError("takeoff aborted: the drone disarmed.")
-        # Wait for the climb to level off, not just to pass the target.
+        # Wait for the climb to level off.
         if (
             pos.relative_alt / 1000.0 >= altitude_m - _ALTITUDE_TOLERANCE_M
-            and abs(pos.vz) < 30  # cm/s
+            and abs(pos.vz) < 30  # Centimeters per second.
         ):
             return {"message": f"hovering at {altitude_m} m", **get_position(drone)}
     raise DroneError(
@@ -115,7 +114,7 @@ def hold(drone: Drone) -> dict:
     """
     require_airborne(drone)
     stop(drone)
-    # Wait for the drone to actually come to a stop.
+    # Wait for the drone to stop.
     deadline = time.time() + 15.0
     while time.time() < deadline:
         pos = drone.wait_for("GLOBAL_POSITION_INT", timeout_s=3.0)

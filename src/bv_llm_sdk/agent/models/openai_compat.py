@@ -1,7 +1,6 @@
-"""Any OpenAI-compatible chat server: vLLM (e.g. on OSC), OpenAI, others.
+"""Backend for any OpenAI compatible chat server such as vLLM or OpenAI.
 
-For Ollama prefer the native backend (models/ollama.py), which can set the
-context window.
+Use the Ollama backend for Ollama since it can set the context window.
 """
 
 from __future__ import annotations
@@ -24,21 +23,20 @@ class OpenAICompatModel:
         except ImportError as exc:
             raise ModelError("the agent needs its extra: uv sync --extra agent") from exc
         self.config = config
-        # OpenAI-compatible servers do not say whether a model takes images.
+        # These servers do not report whether a model takes images.
         self.supports_vision = bool(config.vision if supports_vision is None else supports_vision)
         self.client = openai.OpenAI(
             base_url=config.base_url,
-            # Self-hosted servers ignore the key but the SDK insists on one.
+            # Self hosted servers ignore the key but the SDK requires one.
             api_key=config.api_key or os.environ.get("OPENAI_API_KEY") or "unused",
             timeout=config.timeout_s,
         )
 
     def _thinking_options(self) -> dict:
-        """Map config.think onto what vLLM understands.
+        """Turn config.think into the options vLLM expects.
 
-        True/False switches Qwen-style thinking through the chat template;
-        "low"/"medium"/"high" sets gpt-oss's reasoning effort. None leaves the
-        model's default.
+        True or False turns Qwen thinking on or off. A level sets the gpt-oss reasoning
+        effort. None keeps the model default.
         """
         think = self.config.think
         if think is None:
@@ -51,8 +49,8 @@ class OpenAICompatModel:
         messages: list[dict] = [{"role": "system", "content": system}]
         pending_images: list[dict] = []
         for msg in transcript:
-            # Tool messages must directly follow their assistant message, so
-            # images go in a user message after the whole run of results.
+            # Tool messages must come right after their assistant message so images go
+            # in a user message after the results.
             if not isinstance(msg, ToolResult) and pending_images:
                 messages.extend(pending_images)
                 pending_images = []
@@ -101,10 +99,9 @@ class OpenAICompatModel:
                 args = parse_arguments(raw.function.arguments)
             except ValueError as exc:
                 args = {"__invalid_arguments__": str(exc)}
-            # vLLM's gpt-oss parser sometimes leaks a channel marker into the
-            # name ("arm<|channel|>commentary"); keep the real name.
+            # Some parsers leave a channel marker in the tool name. Keep only the real
+            # name.
             name = raw.function.name.split("<|")[0].strip()
             calls.append(ToolCall(raw.id or new_call_id(), name, args))
-        # Reasoning parsers can leave the newlines that followed the hidden
-        # thinking at the start of the reply.
+        # Strip newlines that reasoning parsers leave at the start.
         return AssistantMessage(text=(message.content or "").strip(), tool_calls=calls)

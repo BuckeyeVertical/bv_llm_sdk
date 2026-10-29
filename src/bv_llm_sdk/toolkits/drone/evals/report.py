@@ -1,10 +1,6 @@
-"""Summarise eval results, one model or many side by side.
+"""Summarize eval results for one model or several side by side.
 
-    uv run scripts/eval_report.py                       # every file in evals/results/
-    uv run scripts/eval_report.py evals/results/*gpt-oss*.jsonl
-    uv run scripts/eval_report.py --markdown > evals/RESULTS.md
-
-ERROR rows (setup or server failures) are shown but left out of pass rates.
+Error rows are shown but left out of pass rates.
 """
 
 from __future__ import annotations
@@ -76,7 +72,7 @@ def summarise(rows: list[dict], markdown: bool = False) -> str:
 
 
 def failures(rows: list[dict]) -> str:
-    """One line per FAIL/ERROR, to see what went wrong."""
+    """One line per failure or error."""
     out = []
     for r in rows:
         if r["outcome"] != "PASS":

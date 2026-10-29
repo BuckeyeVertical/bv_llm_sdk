@@ -1,10 +1,4 @@
-"""Making sense of the tool calls models actually produce.
-
-Self-hosted models are loose: arguments arrive as a JSON string wrapped in a
-code fence, numbers arrive as "10", and some models write the whole tool call
-as JSON text instead of using the tool-calling channel. These helpers repair
-what can be repaired so a near-miss does not cost a whole round trip.
-"""
+"""Fix tool calls from models that do not follow the format exactly."""
 
 from __future__ import annotations
 
@@ -21,10 +15,8 @@ def new_call_id() -> str:
 
 
 def parse_arguments(raw: Any) -> dict[str, Any]:
-    """Tool arguments as a dict, from a dict or a (possibly sloppy) JSON string.
-
-    Raises:
-        ValueError: the arguments cannot be read as a JSON object.
+    """Return tool arguments as a dict. Accepts a dict or a JSON string. Raises ValueError
+    if the arguments are not a JSON object.
     """
     if raw is None or raw == "":
         return {}
@@ -48,11 +40,10 @@ def parse_arguments(raw: Any) -> dict[str, Any]:
 
 
 def coerce(args: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
-    """Convert argument values to the types the tool's JSON schema declares.
+    """Convert argument values to the types in the tool schema.
 
-    Only obvious conversions ("10" -> 10.0, "true" -> True, a JSON string
-    holding a list -> the list); anything else is passed through and left for
-    the tool's own validation to report.
+    Only simple conversions are done. Anything else is passed through for the tool to
+    reject.
     """
     properties = schema.get("properties", {})
     return {k: _coerce_value(v, properties.get(k, {})) for k, v in args.items()}
@@ -92,8 +83,8 @@ def _coerce_value(value: Any, prop: dict[str, Any]) -> Any:
     if kind == "object" and isinstance(value, dict):
         return coerce(value, prop)
     if kind == "object" and isinstance(value, list):
-        # [x, y] for an object with fields (x_m, y_m): models often write
-        # points as pairs. Map positionally when the lengths match.
+        # Models often write points as a list of numbers. Map them to the object fields
+        # by position.
         keys = list(prop.get("properties", {}))
         if keys and len(value) == len(keys):
             return coerce(dict(zip(keys, value)), prop)
@@ -111,8 +102,7 @@ _XML_PARAM = re.compile(r"<parameter=([\w.-]+)>(.*?)(?:</parameter>|(?=<paramete
 
 
 def _xml_tool_calls(text: str, allowed: set[str]) -> list[ToolCall]:
-    """Calls in Qwen3-Coder's own format, which Ollama sometimes passes through
-    as text: <function=NAME><parameter=KEY>VALUE</parameter>...</function>."""
+    """Parse tool calls written in the Qwen3-Coder XML format."""
     calls = []
     for name, body in _XML_CALL.findall(text):
         args: dict[str, Any] = {}
@@ -121,21 +111,17 @@ def _xml_tool_calls(text: str, allowed: set[str]) -> list[ToolCall]:
             try:
                 args[key] = json.loads(value)
             except json.JSONDecodeError:
-                args[key] = value  # a plain string; coerce() fixes types later
+                args[key] = value  # Keep it as text. coerce fixes the type later.
         calls.append(ToolCall(new_call_id(), name, args))
     return calls
 
 
 def extract_text_tool_calls(text: str, allowed: set[str]) -> list[ToolCall]:
-    """Tool calls a model wrote as text instead of real tool calls.
+    """Find tool calls that a model wrote as text.
 
-    Accepts JSON objects like {"name": "takeoff", "arguments": {...}} (or
-    "parameters"), alone, in a list, or inside a code fence, and Qwen3-Coder's
-    <function=...> XML. A known tool name makes any {"name": ...} object a
-    call; an unknown name counts only in an unmistakable call shape (with
-    "arguments"/"parameters", or the XML), so the agent can answer "there is
-    no tool X" and the model can retry, while ordinary JSON in a reply is
-    left alone. The agent never runs a tool outside its toolset.
+    Looks for JSON objects with a tool name and arguments and for the Qwen3-Coder XML
+    format. An unknown tool name only counts when the object clearly looks like a call.
+    The agent can then tell the model that the tool does not exist.
     """
     if not text:
         return []
@@ -154,7 +140,7 @@ def extract_text_tool_calls(text: str, allowed: set[str]) -> list[ToolCall]:
             continue
         except json.JSONDecodeError:
             pass
-        # Fall back to every balanced top-level {...} in the text.
+        # Otherwise try every top level JSON object in the text.
         depth, start = 0, None
         for i, ch in enumerate(block):
             if ch == "{":

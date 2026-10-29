@@ -1,7 +1,7 @@
-"""What the agent is doing, as a stream of events.
+"""Events that report what the agent is doing.
 
-The CLI prints them; a voice front end (text-to-speech of assistant_text)
-or a web UI can subscribe the same way without touching the agent loop.
+The CLI prints them. Other front ends can listen the same way without changing the
+agent.
 """
 
 from __future__ import annotations
@@ -22,4 +22,4 @@ EventHandler = Callable[[AgentEvent], None]
 
 
 def ignore(_event: AgentEvent) -> None:
-    """The default handler: do nothing."""
+    """Default handler that does nothing."""

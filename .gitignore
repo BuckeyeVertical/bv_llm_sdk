@@ -5,3 +5,4 @@ __pycache__/
 /models/
 photos/
 evals/results/
+.DS_Store

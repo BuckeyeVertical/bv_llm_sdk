@@ -1,12 +1,7 @@
-"""Seeing with the drone's camera: photos, object detection and searches.
+"""Camera tools for photos and object detection and searches.
 
-The camera points straight down, so everything here works best a little
-above the treetops' clearance, around 10-30 m. Higher sees more ground but
-makes objects smaller; a person is reliably detected up to about 30 m.
-
-Detections come back with a position on the ground (latitude/longitude and
-metres north/east of the drone and of home), so the result of a search can
-be passed straight to goto_location, orbit, or fly_to_object.
+The camera points straight down. It works best at about 10 to 30 meters. Detections
+include a ground position that other tools can fly to.
 """
 
 from __future__ import annotations
@@ -26,19 +21,17 @@ from ._common import fly_to, ground_amsl_m, reposition, require_airborne, stop
 
 PHOTO_DIR = Path("photos")
 
-# A search must see the object in this many frames in a row before it stops,
-# so one odd frame cannot end it.
+# Frames in a row that must show the object before a search stops.
 _CONFIRM_FRAMES = 2
-# Overlap between neighbouring search_area lanes, as a share of image width.
+# Overlap between search lanes as a share of image width.
 _LANE_OVERLAP = 0.3
-# survey_area treats sightings this close together as one object. Positions
-# estimated in forward flight are off by up to a few metres, so one object
-# seen from two lanes can land ~5 m apart.
+# Sightings closer than this count as one object. Positions from forward flight can be
+# off by a few meters.
 _SAME_OBJECT_M = 6.0
 
 
 def _save(frame: Frame, detections: list[Detection] | None = None, tag: str = "photo") -> str:
-    """Write the frame to photos/, with boxes drawn if detections are given."""
+    """Save the frame to the photos folder with any detection boxes drawn."""
     PHOTO_DIR.mkdir(exist_ok=True)
     path = PHOTO_DIR / f"{time.strftime('%Y%m%d-%H%M%S')}-{frame.sequence}-{tag}.jpg"
     if not detections:
@@ -58,16 +51,15 @@ def _save(frame: Frame, detections: list[Detection] | None = None, tag: str = "p
 
 
 def _ground_size(frame: Frame, det: Detection) -> float:
-    """Length on the ground of the box's longer side, in metres."""
+    """Return the ground length of the longer side of the box in meters."""
     return max(det.x2 - det.x1, det.y2 - det.y1) / frame.fx * frame.altitude_m
 
 
 def _locate(drone: Drone, frame: Frame, det: Detection) -> dict:
-    """Where a detection is on the ground, in every form an LLM might want."""
+    """Return where a detection is on the ground."""
     north, east = frame.pixel_to_ground(*det.center)
     lat, lon = geo.offset(frame.latitude, frame.longitude, north, east)
-    # Offsets from the drone's position *now*, which may differ from the
-    # frame's if the drone has moved since.
+    # Measure from where the drone is now since it may have moved.
     pos = drone.require("GLOBAL_POSITION_INT")
     now_north, now_east = geo.north_east(pos.lat / 1e7, pos.lon / 1e7, lat, lon)
     out = {
@@ -91,14 +83,14 @@ def _locate(drone: Drone, frame: Frame, det: Detection) -> dict:
 
 
 def _remember(drone: Drone, located: dict, name: str | None = None) -> None:
-    """Save a located object as a place so later tools can refer to it."""
+    """Save a found object as a place so other tools can use it."""
     key = name or located["label"]
     drone.places[key] = (located["latitude"], located["longitude"], None)
     located["saved_as"] = key
 
 
 def _query(object_name: str | None, color: str | None = None) -> tuple:
-    """(labels, colour) to filter detections by; either may be None."""
+    """Return the labels and color to filter detections by."""
     labels = {get_detector().resolve(object_name)} if object_name else None
     return labels, resolve_color(color) if color else None
 
@@ -109,13 +101,13 @@ def _detect(frame: Frame, query: tuple, min_confidence: float) -> list[Detection
 
 
 def _fresh_frame(drone: Drone) -> Frame:
-    """A frame taken after this call, so it reflects the drone's current view."""
+    """Return a frame taken after this call."""
     camera = drone.camera
     return camera.next(camera.latest(max_age_s=float("inf")))
 
 
 def _settle(drone: Drone, timeout_s: float = 8.0) -> None:
-    """Wait until the drone has (nearly) stopped moving."""
+    """Wait until the drone has nearly stopped moving."""
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         pos = drone.wait_for("GLOBAL_POSITION_INT", timeout_s=3.0)
@@ -179,7 +171,7 @@ def detect_objects(
     frame = _fresh_frame(drone)
     detections = _detect(frame, query, min_confidence)
     located = [_locate(drone, frame, d) for d in detections]
-    # Save each kind's best detection under its label ("person", "car").
+    # Save the best detection of each kind under its label.
     seen: set[str] = set()
     for item in located:
         if item["label"] not in seen:
@@ -203,11 +195,10 @@ def _scan_while_flying(
     alt_amsl_m: float,
     speed_m_s: float,
 ) -> tuple[Frame, Detection] | None:
-    """Fly to a point, running the detector on each new frame on the way.
+    """Fly to a point and run the detector on each new frame.
 
-    Once the object is confirmed the drone brakes, flies back over where it
-    was seen, and looks again from overhead. Returns (frame, detection), or
-    None if the drone arrived without seeing it.
+    Once the object is confirmed the drone goes back over it and looks again. Returns
+    the frame and detection or None if nothing was found.
     """
     state: dict = {"last": None, "hits": 0, "found": None}
 
@@ -228,9 +219,8 @@ def _scan_while_flying(
         return None
     stop(drone)
     _settle(drone)
-    # By the time two frames agree the drone has flown on, possibly far
-    # enough that the object is behind the camera's view. Go back over it,
-    # then look again: level and still gives a more accurate position.
+    # The drone has moved on by the time the object is confirmed. Go back over it and
+    # look again for a better position.
     seen_frame, seen = state["found"]
     north, east = seen_frame.pixel_to_ground(*seen.center)
     lat, lon = geo.offset(seen_frame.latitude, seen_frame.longitude, north, east)
@@ -306,10 +296,9 @@ def search_for_object(
 def _lawnmower(
     frame: Frame, north_m: float, east_m: float
 ) -> tuple[list[tuple[float, float]], int, float]:
-    """Lane end points covering a rectangle from the frame's position.
+    """Return lane end points that cover a rectangle.
 
-    Lanes run north-south; the drone faces along them, so the image's width
-    spans across them. Returns (points, lane count, lane spacing).
+    Lanes run north and south. Also returns the lane count and spacing.
     """
     spacing = frame.ground_width_m * (1 - _LANE_OVERLAP)
     lanes = max(1, math.ceil(abs(east_m) / spacing) + 1)
@@ -323,7 +312,7 @@ def _lawnmower(
 
 
 def _go_to_start(drone: Drone, place: str | None, altitude_m: float | None) -> None:
-    """Fly to where an area search or survey should begin."""
+    """Fly to the start of an area search or survey."""
     if place is None and altitude_m is None:
         return
     if altitude_m is not None and not 2.0 <= altitude_m <= 120.0:
@@ -341,13 +330,12 @@ def _go_to_start(drone: Drone, place: str | None, altitude_m: float | None) -> N
 def _plan(
     drone: Drone, north_m: float, east_m: float, speed_m_s: float, altitude_m: float | None
 ) -> dict:
-    """What a lawnmower pattern over the area would cost, without flying it."""
+    """Estimate the cost of searching an area without flying it."""
     pos = drone.require("GLOBAL_POSITION_INT")
     alt = altitude_m if altitude_m is not None else pos.relative_alt / 1000.0
     if alt < 2.0:
-        alt = 15.0  # on the ground: plan for a typical search altitude
-    # The footprint only depends on altitude and the camera, so a synthetic
-    # frame at the planned altitude gives the lane spacing.
+        alt = 15.0  # On the ground so plan for a normal search altitude.
+    # Lane spacing only depends on altitude and the camera.
     frame = Frame(b"", 1920, 1080, 1148.2, 1148.2, 960, 540, 0, 0.0,
                   pos.lat / 1e7, pos.lon / 1e7, alt, 0.0)
     try:
@@ -456,8 +444,7 @@ def fly_to_object(
     require_airborne(drone)
     query = _query(object_name)
     target = None
-    # Two passes: the second, taken from nearly overhead, corrects the
-    # first estimate.
+    # Look twice. The second look from overhead corrects the first.
     for _ in range(2):
         frame = _fresh_frame(drone)
         detections = _detect(frame, query, min_confidence)
@@ -530,11 +517,8 @@ def survey_area(
     if not 0.5 <= speed_m_s <= 8:
         raise DroneError("speed_m_s must be between 0.5 and 8 for a survey.")
 
-    # One cluster per physical object: sightings within _SAME_OBJECT_M of each
-    # other are the same thing seen from another frame, even if the detector
-    # named it differently (seen from above, a lying person can come out as
-    # "person" in one frame and "kite" in the next). Each cluster keeps a
-    # confidence-weighted vote per label.
+    # Group sightings that are close together into one object even if the labels differ.
+    # Each group votes on its label by confidence.
     clusters: list[dict] = []
     state: dict = {"last": None, "photo_at": None}
     photos: list[str] = []
@@ -577,8 +561,7 @@ def survey_area(
     for lat, lon in legs:
         fly_to(drone, lat, lon, alt, speed_m_s=speed_m_s, on_sample=collect)
 
-    # Seen once is likely a false alarm; real objects stay in view for
-    # several frames.
+    # Ignore objects seen only once. Real objects stay in view for several frames.
     objects, counts = [], {}
     for c in clusters:
         if c["n"] < _CONFIRM_FRAMES:
@@ -641,7 +624,7 @@ def track_object(
                 return {"following": False, "message": f"lost the {object_name}",
                         "last_seen": located, "drone": get_position(drone)}
             continue
-        # Follow the detection nearest the image centre: the one we are on.
+        # Follow the detection closest to the image center.
         det = min(detections, key=lambda d: (d.center[0] - frame.cx) ** 2 + (d.center[1] - frame.cy) ** 2)
         located = _locate(drone, frame, det)
         last_seen = time.time()

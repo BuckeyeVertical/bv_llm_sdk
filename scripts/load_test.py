@@ -1,5 +1,4 @@
-"""Simulate many people using one model server at once. See
-src/bv_llm_sdk/toolkits/drone/evals/load.py, or run with --help."""
+"""Simulate many users sending requests to one model server."""
 
 import sys
 

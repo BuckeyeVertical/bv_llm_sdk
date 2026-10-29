@@ -1,4 +1,4 @@
-"""Settings for the agent: which model, where, and how it may behave."""
+"""Agent settings."""
 
 from __future__ import annotations
 
@@ -9,12 +9,12 @@ from typing import Literal
 Backend = Literal["ollama", "openai", "anthropic"]
 
 DEFAULT_MODELS = {
-    "ollama": "qwen3-coder:30b",  # in OSC's central model store; 7/7 on the eval
+    "ollama": "qwen3-coder:30b",  # Stored on OSC. Passed all 7 eval scenarios.
     "openai": "gpt-oss:20b",
     "anthropic": "claude-sonnet-5-5",
 }
 DEFAULT_BASE_URLS = {
-    # bv_llm_host's tunnel (scripts/tunnel.sh ollama) lands here.
+    # The bv_llm_host tunnel forwards to this address.
     "ollama": "http://localhost:11434",
     "openai": "http://localhost:8000/v1",
     "anthropic": None,
@@ -23,21 +23,24 @@ DEFAULT_BASE_URLS = {
 
 @dataclass
 class AgentConfig:
-    toolkit: str = "drone"  # which robot; see toolkits/__init__.py
+    toolkit: str = "drone"  # Which robot toolkit to use.
     backend: Backend = "ollama"
-    model: str | None = None  # None = DEFAULT_MODELS[backend]
-    base_url: str | None = None  # None = DEFAULT_BASE_URLS[backend]
-    api_key: str | None = None  # Claude/OpenAI; read from their usual env vars if unset
-    toolset: str = "full"  # see toolsets.py; the drone has "core" for small models
-    num_ctx: int = 32768  # Ollama context window; the full toolset alone is ~7k tokens
-    think: bool | str | None = None  # Ollama: True/False, or "low"/"medium"/"high" (gpt-oss)
-    vision: bool | None = None  # model can take images; None = ask Ollama / assume no elsewhere
+    model: str | None = None  # None uses the default model for the backend.
+    base_url: str | None = None  # None uses the default URL for the backend.
+    # For Claude and OpenAI. Read from the usual environment variable if unset.
+    api_key: str | None = None
+    toolset: str = "full"  # Which tools to offer. The drone has a core set for small models.
+    num_ctx: int = 32768  # Ollama context window. The full toolset alone is about 7k tokens.
+    # Thinking setting. True or False or a reasoning level for gpt-oss.
+    think: bool | str | None = None
+    # Whether the model takes images. None asks Ollama and assumes no for other backends.
+    vision: bool | None = None
     temperature: float = 0.2
-    max_steps: int = 30  # model calls per request
-    max_consecutive_errors: int = 3  # the same failing call this often ends the request
-    state_summary: bool = True  # prefix each request with the drone's state
-    text_tool_fallback: bool = True  # accept tool calls written as JSON text
-    timeout_s: float = 300.0  # per model call
+    max_steps: int = 30  # Model calls per request.
+    max_consecutive_errors: int = 3  # End the request after this many identical failed calls.
+    state_summary: bool = True  # Start each request with the robot state.
+    text_tool_fallback: bool = True  # Accept tool calls written as text.
+    timeout_s: float = 300.0  # Seconds per model call.
 
     def __post_init__(self) -> None:
         if self.backend not in DEFAULT_MODELS:
@@ -47,10 +50,8 @@ class AgentConfig:
 
     @classmethod
     def from_env(cls, **overrides) -> AgentConfig:
-        """Settings from BV_AGENT_<FIELD> environment variables, then overrides.
-
-        e.g. BV_AGENT_BACKEND=anthropic, BV_AGENT_MODEL=qwen3:32b,
-        BV_AGENT_TOOLSET=core. Overrides that are None are ignored.
+        """Load settings from BV_AGENT environment variables. Overrides that are not None
+        are applied last.
         """
         values: dict = {}
         for f in fields(cls):

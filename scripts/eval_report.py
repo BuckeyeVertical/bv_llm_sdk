@@ -1,5 +1,4 @@
-"""Summarise eval results across runs and models. See
-src/bv_llm_sdk/toolkits/drone/evals/report.py, or run with --help."""
+"""Summarize eval results across runs and models."""
 
 import sys
 

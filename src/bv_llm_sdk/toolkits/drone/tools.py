@@ -1,7 +1,6 @@
-"""The drone's tool registry.
+"""The drone tool registry.
 
-Decorate a drone tool with ``@tool`` from here; ``call_tool``,
-``tool_schemas`` and ``run_tool`` act on every tool registered this way.
+Decorate drone tools with tool from here to register them.
 """
 
 from __future__ import annotations

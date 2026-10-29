@@ -1,16 +1,10 @@
-"""The agent loop: a request in, tool calls out, until the job is done.
+"""The agent loop.
 
-    agent = Agent(DroneToolkit(drone), make_model(config), config, on_event=print)
-    agent.run("take off to 10 m and fly a square")
-    agent.run("now land")          # same conversation, it remembers
+Each request is added to one conversation. The model is called and any tools it asks for
+are run in order. The results go back to the model and this repeats until the model
+replies without a tool call. Limits stop the loop if the model gets stuck.
 
-Each run() appends to one conversation. The model is called, its tool calls
-are run one at a time in order (each tool blocks until the robot is done),
-their results go back to the model, and this repeats until the model answers
-without calling a tool. Limits stop a confused model from looping forever.
-
-The loop knows nothing about drones: everything robot-specific comes from
-the toolkit (see ``bv_llm_sdk/toolkit.py``).
+Nothing here is robot specific. That all comes from the toolkit.
 """
 
 from __future__ import annotations
@@ -28,7 +22,7 @@ from .models.base import ChatModel
 from .prompt import system_prompt as build_system_prompt
 from .toolsets import is_named, toolset
 
-# (robot, tool name, args) -> result dict. Defaults to the toolkit's registry.
+# Runs a tool and returns its result. Defaults to the toolkit registry.
 Executor = Callable[[Any, str, dict], dict]
 
 
@@ -50,11 +44,10 @@ class Agent:
         self.system_prompt = system_prompt or build_system_prompt(toolkit)
         self.tool_names = toolset(self.config.toolset, toolkit)
         if not model.supports_vision and is_named(self.config.toolset, toolkit):
-            # Image tools would hand a text-only model a picture it can only
-            # pretend to have seen.
+            # Text only models cannot see images so they do not get image tools.
             self.tool_names = [n for n in self.tool_names if n not in toolkit.vision_tools]
         self.schemas = toolkit.registry.schemas(model.schema_format, self.tool_names)
-        # The JSON schema of each tool's input, for argument coercion.
+        # Input schema for each tool. Used to fix argument types.
         self._input_schemas = {
             s["name"]: s["input_schema"]
             for s in toolkit.registry.schemas("anthropic", self.tool_names)
@@ -66,7 +59,7 @@ class Agent:
         self.transcript = []
 
     def run(self, text: str) -> str:
-        """Carry out one request and return the model's final reply."""
+        """Run one request and return the final reply."""
         self._emit("user", text=text)
         try:
             reply = self._loop(text)
@@ -113,23 +106,23 @@ class Agent:
         Nothing here is drone-specific: the same loop drives any toolkit.
         Check it with: uv run pytest tests/test_agent.py
         """
-        failures: dict[str, int] = {}  # for _is_stuck; one dict per request
+        failures: dict[str, int] = {}  # Failure counts for this request.
 
         # TODO: your loop here.
         raise NotImplementedError("write the agent loop in Agent._loop (agent/agent.py)")
 
-    # --- provided helpers ------------------------------------------------------------
+    # Helpers.
 
     def _user_message(self, text: str) -> UserMessage:
-        """The request, prefixed with a line about the robot's current state."""
+        """Build the user message with the robot state at the start."""
         prefix = self.toolkit.state() if self.config.state_summary else None
         return UserMessage(f"[{prefix}]\n{text}" if prefix else text)
 
     def _ask_model(self) -> AssistantMessage:
-        """One model turn: send the conversation and tools, get the reply."""
+        """Send the conversation and tools to the model and return its reply."""
         reply = self.model.complete(self.system_prompt, self.transcript, self.schemas)
         if not reply.tool_calls and self.config.text_tool_fallback:
-            # Some models write tool calls as text instead of real calls.
+            # Some models write tool calls as text. Turn those into real calls.
             calls = extract_text_tool_calls(reply.text, set(self.tool_names))
             if calls:
                 reply = AssistantMessage(text="", tool_calls=calls)
@@ -138,10 +131,9 @@ class Agent:
         return reply
 
     def _is_stuck(self, call: ToolCall, result: ToolResult, failures: dict[str, int]) -> bool:
-        """Count identical failing calls; True once one has failed too often.
+        """Count repeated failing calls and return True once one has failed too many times.
 
-        Pass the same `failures` dict for the whole request. Any success
-        resets the count.
+        Use one failures dict for the whole request. Any success resets the count.
         """
         if result.ok:
             failures.clear()
@@ -162,9 +154,8 @@ class Agent:
             content = {"ok": False, "error": call.args["__invalid_arguments__"]}
         else:
             schema = self._input_schemas[call.name]
-            # Some servers' tool parsers fill a no-argument call with junk
-            # (vLLM's gpt-oss parser sends {"": ...}); drop what cannot be a
-            # parameter rather than fail the call.
+            # Some tool parsers send junk arguments to tools that take none. Drop keys
+            # that cannot be parameters.
             args = {k: v for k, v in call.args.items() if k} if schema["properties"] else {}
             args = coerce(args, schema)
             content = self.executor(self.toolkit.robot, call.name, args)
@@ -175,7 +166,7 @@ class Agent:
         return result
 
     def _close_open_calls(self, reason: str) -> None:
-        """Give every unanswered tool call a result, so the transcript stays valid."""
+        """Give every unanswered tool call a result so the transcript stays valid."""
         answered = {m.call_id for m in self.transcript if isinstance(m, ToolResult)}
         for msg in reversed(self.transcript):
             if isinstance(msg, AssistantMessage):
@@ -190,13 +181,12 @@ class Agent:
         """Make the robot safe. Never raises."""
         try:
             self.toolkit.stop()
-        except Exception as exc:  # the user interrupted; do not make it worse
+        except Exception as exc:  # Report the error instead of raising.
             self._emit("error", text=f"could not stop the {self.toolkit.name}: {exc}")
 
     def _finish(self, text: str) -> str:
-        """End the request with a message of the agent's own."""
-        # Stopping mid-reply can leave tool calls unanswered; providers reject
-        # a transcript like that on the next request.
+        """End the request with a message from the agent."""
+        # Providers reject a transcript with unanswered tool calls.
         self._close_open_calls("not run: the request was stopped")
         self.transcript.append(AssistantMessage(text=text))
         return text

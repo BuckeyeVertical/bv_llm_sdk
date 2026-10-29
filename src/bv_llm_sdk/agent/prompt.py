@@ -1,9 +1,4 @@
-"""What the model is told: the robot's prompt plus the agent's own rules.
-
-The system prompt has two halves. The toolkit's ``prompt`` says what the
-robot is and how its world works (see ``toolkits/drone/``). ``AGENT_RULES``
-below is how any tool-using agent should behave, whatever the robot.
-"""
+"""Build the system prompt from the toolkit prompt and the general agent rules."""
 
 from __future__ import annotations
 
@@ -31,5 +26,5 @@ Use the tools to do what the user asks.
 
 
 def system_prompt(toolkit: Toolkit) -> str:
-    """The full system prompt for an agent driving this toolkit."""
+    """Return the full system prompt for this toolkit."""
     return f"{toolkit.prompt.rstrip()}\n\n{AGENT_RULES}"

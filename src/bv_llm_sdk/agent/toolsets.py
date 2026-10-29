@@ -1,8 +1,7 @@
-"""Choosing which of a toolkit's tools to offer a model.
+"""Pick which toolkit tools to offer a model.
 
-Every tool schema costs prompt tokens and every extra tool is another chance
-for a small model to pick the wrong one, so toolkits name smaller subsets
-(the drone has "core" and "standard"). "full" is always every tool.
+Fewer tools means a shorter prompt and fewer wrong picks. The full set always has every
+tool.
 """
 
 from __future__ import annotations
@@ -11,7 +10,8 @@ from ..toolkit import Toolkit
 
 
 def toolset(name: str, toolkit: Toolkit) -> list[str]:
-    """Tool names for a toolset: one the toolkit names, "full", or a comma list."""
+    """Return the tool names for a named toolset or the full set or a comma separated list.
+    """
     tools = toolkit.registry.tools
     if name == "full":
         return list(tools)
@@ -29,5 +29,5 @@ def toolset(name: str, toolkit: Toolkit) -> list[str]:
 
 
 def is_named(name: str, toolkit: Toolkit) -> bool:
-    """Whether ``name`` is a named toolset rather than a hand-picked list."""
+    """Whether the name is a named toolset instead of a custom list."""
     return name == "full" or name in toolkit.toolsets

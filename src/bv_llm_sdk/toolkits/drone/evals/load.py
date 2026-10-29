@@ -1,15 +1,8 @@
-"""How a model server holds up when many people use it at once.
+"""Load test a model server with many simulated users.
 
-Builder Night will have one model server and many teams calling it. This runs
-N simulated users at the same time, each sending typical multi-step requests
-through the real agent loop (same system prompt, same 43 tool schemas, same
-growing conversation), with tool results faked so no drone or simulator is
-needed. It reports how long requests and individual model calls take as the
-number of users grows, and, for vLLM, how full the KV cache got and how many
-requests had to wait.
-
-    uv run --extra agent scripts/load_test.py --backend openai \\
-        --base-url http://localhost:8000/v1 --model openai/gpt-oss-20b --users 1,5,10,20
+Each user sends multi step requests through the real agent loop. Tool results are faked
+so no drone or simulator is needed. Reports request and model call times as the number
+of users grows. For vLLM it also reports cache use and queued requests.
 """
 
 from __future__ import annotations
@@ -29,7 +22,7 @@ from ....agent import Agent
 from ....agent.cli import build_parser, config_from_args
 from ....agent.models import ModelError, make_model
 
-# Requests a team might send, each needing several model calls.
+# Requests a team might send. Each needs several model calls.
 REQUESTS = [
     "Take off to 12 meters, fly 20 meters north, then turn to face east.",
     "Fly a square with 15 meter sides, then tell me your battery level.",
@@ -40,7 +33,7 @@ REQUESTS = [
 
 
 def fake_tool(drone, name: str, args: dict) -> dict:
-    """Plausible, instant tool results, so only the model is being measured."""
+    """Return a believable tool result right away so only the model is measured."""
     time.sleep(0.05)
     base = {"ok": True, "latitude": 36.2147, "longitude": -96.0065, "altitude_m": 12.0,
             "north_of_home_m": 0.0, "east_of_home_m": 0.0, "heading_deg": 90.0}
@@ -59,7 +52,7 @@ def fake_tool(drone, name: str, args: dict) -> dict:
 
 
 class MetricsSampler:
-    """Polls vLLM's Prometheus /metrics for KV-cache use and queue length."""
+    """Poll vLLM metrics for cache use and queue length."""
 
     def __init__(self, base_url: str):
         root = re.sub(r"/v1/?$", "", base_url.rstrip("/"))
@@ -99,7 +92,7 @@ class MetricsSampler:
 
 
 class TimedModel:
-    """Wraps a ChatModel to record how long each call takes."""
+    """Wrap a model to record how long each call takes."""
 
     def __init__(self, model):
         self.model = model

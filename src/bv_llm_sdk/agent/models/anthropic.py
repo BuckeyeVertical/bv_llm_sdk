@@ -1,5 +1,4 @@
-"""Claude, through the Anthropic Messages API. A strong baseline to compare
-self-hosted models against. Needs ANTHROPIC_API_KEY (or config.api_key).
+"""Claude through the Anthropic Messages API. Needs ANTHROPIC_API_KEY or config.api_key.
 """
 
 from __future__ import annotations
@@ -31,7 +30,8 @@ class AnthropicModel:
         messages: list[dict] = []
 
         def add(role: str, blocks: list[dict]) -> None:
-            # The API wants user/assistant to alternate; merge neighbours.
+            # The API needs roles to alternate so merge back to back messages from the
+            # same role.
             if messages and messages[-1]["role"] == role:
                 messages[-1]["content"].extend(blocks)
             else:

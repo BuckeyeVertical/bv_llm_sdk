@@ -1,18 +1,8 @@
 """Run the eval scenarios against a model and record the results.
 
-    uv run --extra agent --extra vision scripts/agent_eval.py --model qwen3-coder:30b
-    uv run --extra agent --extra vision scripts/agent_eval.py --model gpt-oss:120b --repeat 3
-    uv run --extra agent --extra vision scripts/agent_eval.py --tags quick
-    # vLLM or any OpenAI-compatible server:
-    uv run --extra agent --extra vision scripts/agent_eval.py --backend openai \\
-        --base-url http://localhost:8000/v1 --model Qwen/Qwen3-32B
-
-Needs the bv_bevy forest world running. Each run appends one JSON line per
-scenario attempt to evals/results/<backend>_<model>_<time>.jsonl; summarise
-any number of those files with scripts/eval_report.py.
-
-Outcomes: PASS / FAIL (the model did the wrong thing) / ERROR (the setup or
-the model server broke, which says nothing about the model).
+Needs the bv_bevy forest world running. Each run writes one JSON line per scenario
+attempt to the evals results folder. A scenario passes or fails based on what the model
+did. Errors mean the setup or model server broke and say nothing about the model.
 """
 
 from __future__ import annotations
@@ -37,13 +27,13 @@ from .world import Tracker, pose, restart_simulator
 
 RESULTS_DIR = Path("evals/results")
 
-# PX4 refusing because the simulator itself is unhealthy (its battery model
-# sometimes goes stale): a broken test bench, not a wrong answer.
+# PX4 refusing because the simulator is unhealthy. This is a setup error and not a wrong
+# answer.
 SIM_FAULTS = ("system health failures", "Battery unhealthy")
 
 
 def run_one(drone: Drone, agent: Agent, scenario: Scenario, render, restart_sim: bool) -> dict:
-    """Set up, run and check one scenario. Never raises."""
+    """Set up and run and check one scenario. Never raises."""
     record: dict = {"scenario": scenario.name, "tags": list(scenario.tags)}
     for attempt in (1, 2):
         try:
@@ -88,13 +78,13 @@ def run_one(drone: Drone, agent: Agent, scenario: Scenario, render, restart_sim:
         tracker.stop()
         return {**record, "outcome": "ERROR", "detail": f"model error: {exc}",
                 "seconds": round(time.time() - t0, 1)}
-    except Exception as exc:  # a bug in the agent or a tool: record, keep going
+    except Exception as exc:  # A bug in the agent or a tool. Record it and keep going.
         tracker.stop()
         return {**record, "outcome": "ERROR",
                 "detail": f"crashed: {type(exc).__name__}: {exc}",
                 "seconds": round(time.time() - t0, 1)}
     seconds = time.time() - t0
-    time.sleep(1.0)  # let the last position sample land
+    time.sleep(1.0)  # Let the last position sample arrive.
     tracker.stop()
     thread.join()
 

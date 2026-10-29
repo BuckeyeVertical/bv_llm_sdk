@@ -1,4 +1,4 @@
-"""The one interface every LLM backend implements."""
+"""The interface every model backend implements."""
 
 from __future__ import annotations
 
@@ -15,25 +15,25 @@ class ModelError(RuntimeError):
 
 
 class ChatModel(Protocol):
-    #: Which tool_schemas() format this backend takes.
+    # Which schema format this backend uses.
     schema_format: Literal["openai", "anthropic"]
-    #: Whether images from `look` should be sent to the model.
+    # Whether to send images to the model.
     supports_vision: bool
 
     def complete(
         self, system: str, transcript: list[Message], tools: list[dict]
     ) -> AssistantMessage:
-        """One model turn: the reply text and any tool calls it makes."""
+        """Run one model turn and return the reply text and tool calls."""
         ...
 
 
 def image_b64(path: str) -> str:
-    """A saved photo as base64 JPEG, shrunk for the model."""
+    """Return a saved photo as base64 JPEG resized for the model."""
     return base64.b64encode(_image_for_model(path)).decode()
 
 
 def make_model(config: AgentConfig) -> ChatModel:
-    """The backend the config asks for."""
+    """Create the backend named in the config."""
     if config.backend == "ollama":
         from .ollama import OllamaModel
 

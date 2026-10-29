@@ -1,4 +1,4 @@
-"""Agent loop and provider conversion, with a scripted model and no drone."""
+"""Tests for the agent loop and provider formats with a scripted model."""
 
 import json
 
@@ -15,7 +15,7 @@ from bv_llm_sdk.toolkits.drone import TOOLS, tool_schemas
 
 
 class FakeModel:
-    """Replays scripted replies and records what it was sent."""
+    """Replay scripted replies and record what was sent."""
 
     schema_format = "openai"
     supports_vision = False
@@ -75,7 +75,7 @@ def test_conversation_persists_across_runs_and_reset_clears_it():
     agent, model, _ = make([AssistantMessage(text="hi"), AssistantMessage(text="again")])
     agent.run("first")
     agent.run("second")
-    assert len(model.seen[1]) == 3  # first user, first reply, second user
+    assert len(model.seen[1]) == 3  # First user message and first reply and second user message.
     agent.reset()
     assert agent.transcript == []
 
@@ -141,8 +141,8 @@ def test_text_tool_call_fallback():
 def test_text_fallback_ignores_plain_json_but_reports_unknown_calls():
     assert extract_text_tool_calls('the result was {"altitude": 3}', {"takeoff"}) == []
     assert extract_text_tool_calls('the person {"name": "Bob"}', {"takeoff"}) == []
-    # A call-shaped object with a made-up tool is returned, so the agent can
-    # tell the model the tool does not exist (it is never executed).
+    # A made up tool is still returned so the agent can tell the model it does not
+    # exist.
     calls = extract_text_tool_calls('{"name": "fly_to", "parameters": {"north_m": 1}}', {"takeoff"})
     assert [c.name for c in calls] == ["fly_to"]
     calls = extract_text_tool_calls(
@@ -225,7 +225,7 @@ def test_toolsets():
     assert core_tokens < 2000
 
 
-# --- provider wire formats -------------------------------------------------------
+# Provider formats.
 
 TRANSCRIPT = [
     UserMessage("look down"),
@@ -262,7 +262,7 @@ def test_ollama_wire_format(fake_image):
     assert roles == ["system", "user", "assistant", "tool", "tool", "user", "assistant", "user"]
     assert wire[2]["tool_calls"][0] == {"function": {"name": "look", "arguments": {}}}
     assert wire[3]["tool_name"] == "look"
-    assert wire[5]["images"] == ["SlBFRw=="]  # image after the run of tool results
+    assert wire[5]["images"] == ["SlBFRw=="]  # Image goes after the tool results.
     model._vision = False
     assert not any("images" in m for m in model.to_wire("SYS", TRANSCRIPT))
 

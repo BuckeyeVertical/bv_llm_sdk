@@ -1,5 +1,4 @@
-"""Score a model on drone requests in the simulator. See
-src/bv_llm_sdk/toolkits/drone/evals/runner.py for options, or run with --help."""
+"""Score a model on drone requests in the simulator."""
 
 import sys
 

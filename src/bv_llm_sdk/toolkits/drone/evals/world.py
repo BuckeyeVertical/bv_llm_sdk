@@ -1,10 +1,8 @@
-"""The simulator side of the evals: where things are, and putting the drone
-in a known state before each scenario.
+"""Simulator setup for the evals.
 
-Scenarios must not depend on each other, so before each one the drone is put
-on the launch pad or hovering above it. Landing on the pad before taking off
-also matters for a subtler reason: PX4 resets "home" to wherever the drone
-arms, and the requests talk about home and the launch pad as the same place.
+Before each scenario the drone is put on the launch pad or hovering above it so
+scenarios do not depend on each other. PX4 sets home where the drone arms so landing on
+the pad first keeps home on the pad.
 """
 
 from __future__ import annotations
@@ -18,8 +16,7 @@ from .. import geo
 from ..actions import goto_location, land, set_heading, takeoff
 from ..drone import Drone, DroneError
 
-# The bv_bevy forest world: its launch pad, and the mannequin lying 18 m
-# north and 14 m east of it.
+# The forest world launch pad and the mannequin near it.
 FOREST_PAD = (36.2146748, -96.0065553)
 PERSON = geo.offset(*FOREST_PAD, 18.0, 14.0)
 
@@ -28,9 +25,9 @@ HOVER_ALT_M = 10.0
 
 @dataclass
 class Pose:
-    north: float  # metres north of the pad
+    north: float  # Meters north of the pad.
     east: float
-    alt: float  # metres above launch
+    alt: float  # Meters above launch.
     heading: float
     armed: bool
 
@@ -57,7 +54,7 @@ def _reset_agent_state(drone: Drone) -> None:
 
 
 def on_pad(drone: Drone) -> None:
-    """Landed and disarmed on the launch pad."""
+    """Land and disarm on the launch pad."""
     _reset_agent_state(drone)
     p = pose(drone)
     if not p.armed and math.hypot(p.north, p.east) < 1.5:
@@ -66,13 +63,13 @@ def on_pad(drone: Drone) -> None:
         takeoff(drone, 6)
     goto_location(drone, *FOREST_PAD)
     land(drone)
-    # PX4 disarms a moment after touchdown; let it settle before the next arm.
+    # Let PX4 disarm before the next arm.
     time.sleep(2)
 
 
 def hovering(drone: Drone, north: float = 0.0, east: float = 0.0) -> None:
-    """Hovering at HOVER_ALT_M facing north, at (north, east) from the pad,
-    with home on the pad."""
+    """Hover at HOVER_ALT_M facing north at an offset from the pad with home on the pad.
+    """
     _reset_agent_state(drone)
     if not drone.armed or not _home_on_pad(drone):
         on_pad(drone)
@@ -84,8 +81,7 @@ def hovering(drone: Drone, north: float = 0.0, east: float = 0.0) -> None:
 
 
 def restart_simulator() -> None:
-    """Restart PX4/Gazebo. Fixes the sim's occasional stale-battery state
-    ("Battery unhealthy"), which blocks arming."""
+    """Restart the simulator. Fixes a stale battery state that blocks arming."""
     subprocess.run(["docker", "restart", "bv-simulator"], check=False,
                    capture_output=True, timeout=120)
     time.sleep(45)
@@ -93,7 +89,7 @@ def restart_simulator() -> None:
 
 @dataclass
 class Track:
-    """What the drone did during a scenario, sampled twice a second."""
+    """What the drone did during a scenario. Sampled twice a second."""
 
     path_m: float = 0.0
     min_alt: float = math.inf
@@ -104,7 +100,7 @@ class Track:
 
     @property
     def width_m(self) -> float:
-        """Horizontal size of everything flown (bounding-box diagonal)."""
+        """Horizontal size of everything flown."""
         if self.north_range[0] == math.inf:
             return 0.0
         return math.hypot(self.north_range[1] - self.north_range[0],
