@@ -13,6 +13,7 @@ from ..toolkit import Toolkit
 # name -> "module:Class", imported only when chosen, so one robot's
 # dependencies are not needed to drive another.
 TOOLKITS = {
+    "arm": "bv_llm_sdk.toolkits.arm:ArmToolkit",
     "drone": "bv_llm_sdk.toolkits.drone:DroneToolkit",
 }
 

@@ -345,6 +345,72 @@ Then add it to `TOOLKITS` in
 lessons above carry over: put verdicts like `reachable` in the tools, and
 make results show what actually happened (did the grasp hold?).
 
+## The robot arm
+
+`toolkits/arm` drives a four servo arm that draws on paper with a marker. An
+Arduino UNO moves the servos. Python does the geometry and checks every
+waypoint before anything moves, so a refused job moves nothing. All tools work
+in centimeters.
+
+Run it without hardware. The fake arm checks plans but models no physics:
+```bash
+BV_ARM_SIM=1 uv run --extra agent --extra arm bv-agent --toolkit arm
+```
+
+Run it on the real arm:
+```bash
+BV_ARM_PORT=/dev/cu.usbmodem101 uv run --extra agent --extra arm bv-agent --toolkit arm
+```
+
+On connect Python asks the Arduino for its position. If the servos are already
+holding, the agent takes over the arm where it is and `go_home` moves it from
+there, so people can swap laptops without touching it. This needs an Arduino that
+does not reset when the port opens, and that keeps its power with the USB cable
+unplugged.
+
+If the servos are limp, you pose the arm at its park pose by hand and press
+Enter. Ctrl-C stops the job and the servos keep holding. Use the servo power
+switch for an emergency.
+
+### Firmware
+
+Flash [`firmware/arm_firmware`](firmware/arm_firmware/arm_firmware.ino) from the
+Arduino IDE. Signal pins are 3 base, 5 shoulder, 6 elbow and 9 wrist. Power the
+servos from an external supply, never the UNO 5V pin, and tie its ground to
+Arduino ground.
+
+The firmware speaks 115200 baud, one command per line. Each command answers
+`ok` or `err <reason>`.
+
+| Command | Does |
+| --- | --- |
+| `M a1 a2 a3 a4 [ms]` | Queue a move of all servos |
+| `J n angle` | Move one servo |
+| `A` | Attach at the park pose |
+| `D` | Detach, servos go limp |
+| `X` | Stop now and go limp |
+| `Z` | Answer `ok` when motion has finished |
+| `P` | Print position |
+| `K` | Save the current pose as park |
+| `G` | Print calibration |
+| `L n min max` | Set limits |
+| `R n ref dir` | Set reference angle and direction |
+| `W` | Save calibration to EEPROM |
+| `F` | Reset calibration to defaults |
+| `C n [angle]` | Enter calibration mode for a servo |
+
+### Calibration
+
+Servo limits, references and directions live on the Arduino and are read on
+every connect. Change them from the Arduino IDE Serial Monitor. Send `C n`, then
+use `+` and `-` to step, `s 2.5` to set the step, `g 90` to go to an angle, `[`
+and `]` to mark min and max, `0` to mark the reference, `^` and `v` to set the
+direction, and `x` to leave. Send `W` to save.
+
+Everything else is in
+[`toolkits/arm/calibration.json`](src/bv_llm_sdk/toolkits/arm/calibration.json):
+arm lengths, `paper_z`, speeds, backlash and each servo's `scale`.
+
 ## Developing
 
 ### Layout
@@ -355,6 +421,13 @@ src/bv_llm_sdk/
 ├── toolkit.py         Toolkit: everything the agent knows about one robot
 ├── agent/             the agent loop, prompt rules, model backends, bv-agent CLI
 └── toolkits/
+    ├── arm/           the drawing arm
+    │   ├── arm.py         the robot object (Arm, connect)
+    │   ├── link.py        serial link to the Arduino and the fake arm
+    │   ├── kinematics.py, planner.py, shapes.py, font.py
+    │   ├── settings.py, calibration.json
+    │   ├── tools.py       the arm's ToolRegistry and tools
+    │   └── toolkit.py     ArmToolkit: prompt, state line, stop
     └── drone/         one robot, self-contained
         ├── drone.py       the PX4 link (Drone, connect)
         ├── tools.py       the drone's ToolRegistry (@tool, call_tool...)

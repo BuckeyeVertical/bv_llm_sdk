@@ -22,6 +22,9 @@ agent = [
 claude = [
     "anthropic>=1.13.0",
 ]
+arm = [
+    "pyserial>=3.5",
+]
 
 [project.scripts]
 bv-agent = "bv_llm_sdk.agent.cli:main"
