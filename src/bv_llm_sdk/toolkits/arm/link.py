@@ -5,10 +5,26 @@ import time
 from ...registry import ToolError
 
 BAUD = 115200
+ARDUINO_USB_VENDORS = {0x2341, 0x2A03, 0x1A86, 0x0403}
 
 
 class ArmError(ToolError):
     pass
+
+
+def find_port() -> str:
+    try:
+        from serial.tools.list_ports import comports
+    except ImportError as exc:
+        raise ArmError("the arm needs pyserial. Run: uv sync --extra agent --extra arm") from exc
+    ports = [port.device for port in comports() if port.vid in ARDUINO_USB_VENDORS]
+    if not ports:
+        raise ArmError("no Arduino found. Plug in the arm, or set BV_ARM_PORT to its port. "
+                       "Set BV_ARM_SIM=1 for the fake arm.")
+    if len(ports) > 1:
+        raise ArmError(f"found more than one Arduino ({', '.join(ports)}). "
+                       "Set BV_ARM_PORT to the arm's port.")
+    return ports[0]
 
 
 class Link:

@@ -1,8 +1,11 @@
+import sys
+import types
+
 import pytest
 
 from bv_llm_sdk.toolkits import toolkit_class
 from bv_llm_sdk.toolkits.arm import ArmError, ArmToolkit, connect
-from bv_llm_sdk.toolkits.arm.link import Link
+from bv_llm_sdk.toolkits.arm.link import Link, find_port
 from bv_llm_sdk.toolkits.arm.tools import ARM_TOOLS
 
 
@@ -111,9 +114,34 @@ def test_stop_with_no_robot_does_nothing():
     ArmToolkit(None).stop()
 
 
-def test_connect_needs_a_port_or_sim():
-    with pytest.raises(ArmError, match="BV_ARM_PORT"):
+def plug_in(monkeypatch, *ports):
+    listing = types.SimpleNamespace(comports=lambda: [types.SimpleNamespace(device=d, vid=v) for d, v in ports])
+    tools = types.SimpleNamespace(list_ports=listing)
+    monkeypatch.setitem(sys.modules, "serial", types.SimpleNamespace(tools=tools))
+    monkeypatch.setitem(sys.modules, "serial.tools", tools)
+    monkeypatch.setitem(sys.modules, "serial.tools.list_ports", listing)
+
+
+def test_find_port_picks_the_one_arduino(monkeypatch):
+    plug_in(monkeypatch, ("/dev/cu.Bluetooth", None), ("/dev/cu.usbmodem101", 0x2341))
+    assert find_port() == "/dev/cu.usbmodem101"
+
+
+def test_find_port_accepts_clone_boards(monkeypatch):
+    plug_in(monkeypatch, ("/dev/cu.usbserial-110", 0x1A86))
+    assert find_port() == "/dev/cu.usbserial-110"
+
+
+def test_no_arduino_says_how_to_fix_it(monkeypatch):
+    plug_in(monkeypatch, ("/dev/cu.Bluetooth", None))
+    with pytest.raises(ArmError, match="Plug in the arm"):
         connect()
+
+
+def test_two_arduinos_ask_for_the_port(monkeypatch):
+    plug_in(monkeypatch, ("/dev/a", 0x2341), ("/dev/b", 0x2341))
+    with pytest.raises(ArmError, match="BV_ARM_PORT"):
+        find_port()
 
 
 class FakeSerial:
