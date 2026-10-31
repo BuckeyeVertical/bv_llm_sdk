@@ -403,3 +403,23 @@ def test_agent_drives_any_toolkit():
     results = [m for m in agent.transcript if isinstance(m, ToolResult)]
     assert results[0].content == {"ok": True, "force_n": 5.0}
     assert results[1].content == {"ok": False, "error": "already holding something"}
+
+
+def test_config_reads_a_dotenv_file_and_real_env_wins(monkeypatch, tmp_path):
+    (tmp_path / ".env").write_text("BV_AGENT_API_KEY=from-file\nBV_AGENT_MAX_STEPS=7\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("BV_AGENT_MAX_STEPS", "3")
+    monkeypatch.setenv("BV_AGENT_API_KEY", "placeholder")
+    monkeypatch.delenv("BV_AGENT_API_KEY")
+    config = AgentConfig.from_env()
+    assert config.api_key == "from-file"
+    assert config.max_steps == 3
+    monkeypatch.delenv("BV_AGENT_API_KEY", raising=False)
+
+
+def test_default_config_is_the_shared_vllm_server():
+    config = AgentConfig()
+    assert config.backend == "openai"
+    assert config.base_url.endswith(".ts.net/v1")
+    assert config.vision is True
+    assert AgentConfig(backend="ollama").vision is None
