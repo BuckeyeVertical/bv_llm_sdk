@@ -8,19 +8,9 @@ robot arm that draws on paper. The setup below is the same for both.
 
 ## Prerequisites
 
-Install these two programs first. Follow the link for your computer.
-
-| Program | What it is for | Check it worked |
-| --- | --- | --- |
-| [Git](https://git-scm.com/downloads) | Downloads this project | `git --version` |
-| [uv](https://docs.astral.sh/uv/getting-started/installation/) | Installs Python and the project's packages | `uv --version` |
-
-Each toolkit has a few more prerequisites of its own, listed in its section.
+Install [Git](https://git-scm.com/downloads) and [uv](https://docs.astral.sh/uv/getting-started/installation/)
 
 ## Setup
-
-Run these commands in a terminal. On a Mac, open the Terminal app. On Windows, open
-PowerShell. On Linux, open your usual terminal.
 
 If you just installed Git or uv, close the terminal and open a new one first.
 
@@ -95,8 +85,7 @@ Follow this section if you are using the drone. It runs in a simulator on your c
 | [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Runs the flight simulator | `docker --version` |
 | [Rust](https://rustup.rs) | Builds the 3D world | `cargo --version` |
 
-Open Docker Desktop and leave it running. On a Mac, you can use
-[OrbStack](https://orbstack.dev) instead.
+If `cargo` isn't found after installing Rust, close the terminal and open a new one.
 
 ### 1. Download the simulator
 
@@ -173,7 +162,23 @@ uv run scripts/tool.py get_status
 
 You should see the drone's status printed with no errors.
 
-To stop the simulator, press Ctrl+C in the first and second terminals.
+### 7. Chat with the drone
+
+```bash
+uv run scripts/chat.py --toolkit drone
+```
+
+When you see `you>`, type a request and press Enter:
+
+```text
+you> take off to 10 meters and fly a square
+```
+
+If you see `write the agent loop`, the chat is working and your next job is to write the
+agent loop in `src/bv_llm_sdk/agent/agent.py`.
+
+Type `quit` to exit the chat. To stop the simulator, press Ctrl+C in the first and second
+terminals.
 
 ## Robot arm setup
 
@@ -212,8 +217,6 @@ Keep your hands clear and press Enter, and the arm will hold itself up.
 
 When you see `you>`, the arm is connected. Type `quit` to exit.
 
-To stop the arm in an emergency, turn off the servo power supply. Hold the arm first if
-you can, because it will fall.
 
 ### No arm?
 
