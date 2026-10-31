@@ -205,6 +205,35 @@ what changes. Or sketch a second robot (see [Other robots](#other-robots)):
 your loop drives it unchanged. The finished agent is on the `ConstructI/O`
 branch.
 
+## Chat with a robot
+
+`scripts/chat.py` is the simplest way to run the agent. You type a request at
+the `you>` prompt, the agent carries it out, and it keeps the conversation until
+you type `quit`. Install the extras once:
+```bash
+uv sync --extra agent --extra vision --extra arm
+```
+
+Then pick a robot:
+```bash
+uv run scripts/chat.py --toolkit drone
+```
+```bash
+BV_ARM_PORT=/dev/cu.usbmodem101 uv run scripts/chat.py --toolkit arm
+```
+
+Use `BV_ARM_SIM=1` in place of `BV_ARM_PORT` for the fake arm. For every option,
+use `bv-agent` below.
+
+The agent uses the shared vLLM server by default and only needs its API key. Copy
+the example file and fill in the key:
+```bash
+cp .env.example .env
+```
+
+The `.env` file is read automatically and is never committed. Any `BV_AGENT_*`
+setting can go there, and real environment variables win over the file.
+
 ## The agent
 
 `bv_llm_sdk.agent` turns plain-language requests into tool calls. It runs the
@@ -215,8 +244,8 @@ flies the drone by default but can drive any robot (see
 
 | `--backend` | For | Default model |
 | --- | --- | --- |
-| `ollama` (default) | Ollama, e.g. served on OSC by [bv_llm_host](https://github.com/BuckeyeVertical/bv_llm_host) | `qwen3-coder:30b` |
-| `openai` | Any OpenAI-compatible server (vLLM, OpenAI) | `gpt-oss:20b` |
+| `openai` (default) | Any OpenAI-compatible server (vLLM, OpenAI). Defaults to the shared vLLM server | `Qwen/Qwen3.6-35B-A3B-FP8` |
+| `ollama` | Ollama, e.g. served on OSC by [bv_llm_host](https://github.com/BuckeyeVertical/bv_llm_host) | `qwen3-coder:30b` |
 | `anthropic` | Claude, a strong baseline (needs `ANTHROPIC_API_KEY`, `--extra claude`) | `claude-sonnet-5-5` |
 
 ### Run it against Ollama on OSC
@@ -228,7 +257,7 @@ scripts/submit.sh ollama
 scripts/tunnel.sh ollama
 # laptop, in bv_llm_sdk, with the simulator running
 uv sync --extra agent --extra vision
-uv run --extra agent --extra vision bv-agent
+uv run --extra agent --extra vision bv-agent --backend ollama
 ```
 
 ```text

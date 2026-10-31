@@ -6,17 +6,19 @@ import os
 from dataclasses import dataclass, fields
 from typing import Literal
 
+from dotenv import find_dotenv, load_dotenv
+
 Backend = Literal["ollama", "openai", "anthropic"]
 
 DEFAULT_MODELS = {
     "ollama": "qwen3-coder:30b",  # Stored on OSC. Passed all 7 eval scenarios.
-    "openai": "gpt-oss:20b",
+    "openai": "Qwen/Qwen3.6-35B-A3B-FP8",
     "anthropic": "claude-sonnet-5-5",
 }
 DEFAULT_BASE_URLS = {
     # The bv_llm_host tunnel forwards to this address.
     "ollama": "http://localhost:11434",
-    "openai": "http://localhost:8000/v1",
+    "openai": "https://bv-llm.tail43a32e.ts.net/v1",
     "anthropic": None,
 }
 
@@ -24,7 +26,7 @@ DEFAULT_BASE_URLS = {
 @dataclass
 class AgentConfig:
     toolkit: str = "drone"  # Which robot toolkit to use.
-    backend: Backend = "ollama"
+    backend: Backend = "openai"
     model: str | None = None  # None uses the default model for the backend.
     base_url: str | None = None  # None uses the default URL for the backend.
     # For Claude and OpenAI. Read from the usual environment variable if unset.
@@ -47,12 +49,15 @@ class AgentConfig:
             raise ValueError(f"unknown backend {self.backend!r}; use ollama, openai or anthropic")
         self.model = self.model or DEFAULT_MODELS[self.backend]
         self.base_url = self.base_url or DEFAULT_BASE_URLS[self.backend]
+        if self.vision is None and self.model == DEFAULT_MODELS["openai"]:
+            self.vision = True
 
     @classmethod
     def from_env(cls, **overrides) -> AgentConfig:
-        """Load settings from BV_AGENT environment variables. Overrides that are not None
-        are applied last.
+        """Load settings from a .env file and BV_AGENT environment variables. Real
+        environment variables beat the file. Overrides that are not None are applied last.
         """
+        load_dotenv(find_dotenv(usecwd=True))
         values: dict = {}
         for f in fields(cls):
             raw = os.environ.get(f"BV_AGENT_{f.name.upper()}")

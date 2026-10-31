@@ -1,6 +1,6 @@
 """Command line chat with a robot.
 
-Settings can also come from BV_AGENT environment variables. Pressing Ctrl C during a
+Settings can also come from a .env file or BV_AGENT environment variables. Pressing Ctrl C during a
 request stops the agent and makes the robot safe.
 """
 
@@ -75,7 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--toolkit", choices=sorted(TOOLKITS), help="which robot (default: drone)")
     p.add_argument("--backend", choices=["ollama", "openai", "anthropic"])
     p.add_argument("--model", help="e.g. gpt-oss:20b, qwen3:32b, claude-sonnet-5-5")
-    p.add_argument("--base-url", help="model server (default: Ollama on localhost:11434)")
+    p.add_argument("--base-url", help="model server (default: the shared vLLM server)")
     p.add_argument("--toolset", help="core, standard, full, or a comma list of tools")
     p.add_argument("--num-ctx", type=int, help="Ollama context window in tokens")
     p.add_argument("--think", help="reasoning: true/false (Qwen-style) or low/medium/high "
