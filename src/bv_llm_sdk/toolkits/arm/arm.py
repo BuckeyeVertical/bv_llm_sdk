@@ -6,7 +6,7 @@ from typing import Callable
 
 from .font import FONT, GLYPH_ADVANCE, glyph_strokes
 from .kinematics import Kinematics
-from .link import ArmError, Link, SimLink
+from .link import ArmError, Link, SimLink, find_port
 from .planner import Backlash, Planner, Point, Step, find_problems, summarize
 from .settings import Settings, load_settings
 
@@ -189,9 +189,7 @@ def connect(port: str | None = None, sim: bool = False) -> Arm:
     if sim:
         home = Kinematics(settings).ik_xyz(settings.home_x, settings.home_y, settings.home_z)
         return Arm(SimLink(home.servo, settings.base_enabled), settings)
-    if not port:
-        raise ArmError("no serial port given. Set BV_ARM_PORT, or BV_ARM_SIM=1 for the fake arm.")
-    arm = Arm(Link(port), settings)
+    arm = Arm(Link(port or find_port()), settings)
     try:
         arm.sync_calibration()
         arm.check_settings()
