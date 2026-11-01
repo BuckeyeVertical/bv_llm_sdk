@@ -60,6 +60,30 @@ def test_out_of_reach_job_moves_nothing(arm):
     assert not moves(arm)
 
 
+def test_rotate_base_turns_left_and_right_from_where_it_is(arm):
+    assert call(arm, "rotate_base", degrees=20)["ok"]
+    assert call(arm, "get_status")["tip_theta_deg"] == pytest.approx(20, abs=0.5)
+    assert call(arm, "rotate_base", degrees=-30)["ok"]
+    status = call(arm, "get_status")
+    assert status["tip_theta_deg"] == pytest.approx(-10, abs=0.5)
+    assert status["tip_r_cm"] == pytest.approx(20.0, abs=0.2)
+    assert status["tip_z_cm"] == pytest.approx(6.0, abs=0.2)
+
+
+def test_rotate_base_lifts_the_pen_and_leaves_it_up(arm):
+    assert call(arm, "move_to", x_cm=24, y_cm=0, z_cm=arm.settings.paper_z)["ok"]
+    assert call(arm, "rotate_base", degrees=10)["ok"]
+    status = call(arm, "get_status")
+    assert not status["pen_on_paper"]
+    assert status["tip_theta_deg"] == pytest.approx(10, abs=0.5)
+
+
+@pytest.mark.parametrize("degrees", [80, -80, 360])
+def test_rotate_base_past_its_limit_moves_nothing(arm, degrees):
+    assert not call(arm, "rotate_base", degrees=degrees)["ok"]
+    assert not moves(arm)
+
+
 def test_limp_servos_refuse_to_move():
     robot = connect(sim=True)
     result = call(robot, "draw_circle", diameter_cm=3)

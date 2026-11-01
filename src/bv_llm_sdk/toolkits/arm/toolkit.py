@@ -12,7 +12,7 @@ from .tools import ARM_TOOLS
 #
 #   - What it is: a four servo robot arm that draws on paper with a marker.
 #   - How its world works: which way is up on the page and how text is laid out.
-#   - Its reach: about 16 to 34 cm out from the base and 43 degrees to either
+#   - Its reach: about 16 to 34 cm from the base and 67 degrees to either
 #     side. The default center is x 24 y 0.
 #   - Arm rules: checking reach, and what to do when a job is refused.
 #

@@ -168,6 +168,12 @@ class Planner:
         steps += self._line(x, y, z, False, self.s.travel_speed / 2, "lower" if z < travel_z else "lift")
         return steps
 
+    def rotate(self, degrees: float) -> list[Step]:
+        x, y, z = self.tip
+        r, theta = to_polar(x, y)
+        yaw = math.radians(theta + degrees)
+        return self.goto(r * math.cos(yaw), r * math.sin(yaw), max(z, self.lift_z))
+
     def stroke(self, points: list[Point]) -> list[Step]:
         if len(points) < 2:
             return []
