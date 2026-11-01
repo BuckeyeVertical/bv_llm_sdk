@@ -174,8 +174,8 @@ When you see `you>`, type a request and press Enter:
 you> take off to 10 meters and fly a square
 ```
 
-If you see `write the agent loop`, the chat is working and your next job is to write the
-agent loop in `src/bv_llm_sdk/agent/agent.py`.
+If you see `write the agent loop`, the chat is working. Your next job is in
+[your_task.md](your_task.md).
 
 Type `quit` to exit the chat. To stop the simulator, press Ctrl+C in the first and second
 terminals.
@@ -226,3 +226,7 @@ nothing physical happens.
 ```text
 BV_ARM_SIM=1
 ```
+
+## Your task
+
+When your robot is set up, go to [your_task.md](your_task.md).

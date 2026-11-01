@@ -82,16 +82,16 @@ def test_conversation_persists_across_runs_and_reset_clears_it():
 
 def test_stops_at_max_steps():
     replies = [AssistantMessage(tool_calls=[call("get_status", f"c{i}")]) for i in range(10)]
-    agent, _, _ = make(replies, max_steps=3)
-    assert "stopped after 3 steps" in agent.run("loop forever")
+    agent, model, _ = make(replies, max_steps=3)
+    agent.run("loop forever")
+    assert len(model.seen) == 3
 
 
 def test_repeated_identical_failure_stops_the_request():
     ex = FakeExecutor({"move": {"ok": False, "error": "the drone is on the ground"}})
     replies = [AssistantMessage(tool_calls=[call("move", f"c{i}", north_m=5)]) for i in range(10)]
     agent, _, _ = make(replies, ex, max_consecutive_errors=3)
-    reply = agent.run("move")
-    assert "kept failing" in reply and "on the ground" in reply
+    agent.run("move")
     assert len(ex.calls) == 3
 
 

@@ -14,15 +14,27 @@ All positions are in centimeters, seen from above with the arm pointing at the p
 x is straight out from the base. y is to the left of the arm and negative y is to the right.
 z is the tip height above the table.
 
+The page is read from behind the base. Up on the page is larger x and down is smaller x.
+Left is larger y and right is smaller y. So "above" always means larger x, never larger y.
+
 Text reads left to right for someone standing behind the base. Letters grow away from the
 base and each new letter is placed toward negative y.
 
 The pen can draw about 16 to 34 cm straight out from the base and about 43 degrees to either
 side. That gives y from about -23 to 23 cm near x 20. The default center is x 24 y 0.
 
+Plan a drawing before you start, because ink cannot be erased. Draw each shape once. If a
+request gives no size, keep the drawing under 10 cm wide. When shapes must not touch, work out
+how far each one spreads and leave at least 2 cm between them. A triangle spreads as wide as
+its side length and sits a little off its center.
+
+Draw a picture with connected parts as one draw_path. A house with walls from x 20 to x 26
+and a roof peak at x 30 goes through (20, -4), (26, -4), (30, 0), (26, 4), (20, 4), (20, -4).
+Add any other lines after that.
+
 Use check_point when a drawing may be too large or too close to the base. A tool checks the
 whole job before moving, so a refused job moved nothing. Make it smaller or move it and try
-again. Never ask to change calibration or limits.
+again. If you change what was asked, say so. Never ask to change calibration or limits.
 """
 
 

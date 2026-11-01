@@ -244,3 +244,48 @@ def test_a_new_session_can_go_home_from_wherever_the_arm_stopped():
     assert second.is_holding()
     assert call(second, "go_home")["ok"]
     assert call(second, "get_status")["tip_x_cm"] == pytest.approx(20.0, abs=0.2)
+
+
+def test_a_shape_keeps_the_one_center_value_it_was_given(arm):
+    from bv_llm_sdk.toolkits.arm.evals import record_steps, shapes_from
+
+    steps = record_steps(arm)
+    assert call(arm, "draw_square", size_cm=3, center_y_cm=8)["ok"]
+    x, y = shapes_from(steps, arm.settings.paper_z)[0].center
+    assert (x, y) == pytest.approx((arm.settings.center_x, 8), abs=0.1)
+
+
+def drawn(arm, *calls):
+    from bv_llm_sdk.toolkits.arm.evals import Result, record_steps, shapes_from
+
+    steps = record_steps(arm)
+    results = [(name, args, ARM_TOOLS.call(arm, name, args)["ok"]) for name, args in calls]
+    return Result(shapes_from(steps, arm.settings.paper_z), "", results, bool(steps))
+
+
+def path(*points):
+    return "draw_path", {"points": [{"x_cm": x, "y_cm": y} for x, y in points]}
+
+
+def test_eval_measures_what_was_drawn(arm):
+    from bv_llm_sdk.toolkits.arm.evals import square_5
+
+    assert square_5(drawn(arm, ("draw_square", {"size_cm": 5})))[0]
+    assert not square_5(drawn(arm, ("draw_square", {"size_cm": 3})))[0]
+
+
+def test_eval_house_needs_its_roof_away_from_the_base(arm):
+    from bv_llm_sdk.toolkits.arm.evals import upright_house
+
+    up = path((20, -3), (20, 3), (25, 3), (28, 0), (25, -3), (20, -3))
+    down = path((28, -3), (28, 3), (23, 3), (20, 0), (23, -3), (28, -3))
+    assert upright_house(drawn(arm, up))[0]
+    assert not upright_house(drawn(arm, down))[0]
+
+
+def test_eval_counts_only_text_that_was_written(arm):
+    from bv_llm_sdk.toolkits.arm.evals import whole_phrase
+
+    result = drawn(arm, ("write_text", {"text": "BUCKEYE VERTICAL"}))
+    assert result.written() == ""
+    assert not whole_phrase(result)[0]
