@@ -18,10 +18,12 @@ The page is read from behind the base. Up on the page is larger x and down is sm
 Left is larger y and right is smaller y. So "above" always means larger x, never larger y.
 
 Text reads left to right for someone standing behind the base. Letters grow away from the
-base and each new letter is placed toward negative y.
+base and each new letter is placed toward negative y. Text is 3 cm tall unless asked for
+another size. Each letter takes 3 cm, so a line fits about 11 letters. Put longer text on more
+lines with a newline character. Do not make it smaller or move the text cursor to fit it.
 
-The pen can draw about 16 to 34 cm straight out from the base and about 43 degrees to either
-side. That gives y from about -23 to 23 cm near x 20. The default center is x 24 y 0.
+The pen can draw about 16 to 34 cm from the base and about 67 degrees to either side. That
+gives y from about -28 to 28 cm near x 20. The default center is x 24 y 0.
 
 Plan a drawing before you start, because ink cannot be erased. Draw each shape once. If a
 request gives no size, keep the drawing under 10 cm wide. When shapes must not touch, work out

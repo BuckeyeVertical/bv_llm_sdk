@@ -14,7 +14,7 @@
   "center_y": 0.0,
   "text_size": 3.0,
   "text_start_x": 26.0,
-  "text_start_y": 10.0,
+  "text_start_y": 15.0,
   "line_spacing": 1.6,
   "paper_box": null,
   "home_x": 20.0,
@@ -33,7 +33,7 @@
   "base_enabled": true,
   "base_yaw": 0.0,
   "servos": [
-    {"name": "S1 base", "offset": 96.0, "dir": 1, "min": 61.0, "max": 131.0, "scale": 0.8036},
+    {"name": "S1 base", "offset": 55.0, "dir": 1, "min": 0.0, "max": 110.0, "scale": 0.8036},
     {"name": "S2 shoulder", "offset": 167.5, "dir": -1, "min": 77.5, "max": 167.5},
     {"name": "S3 elbow", "offset": 287.0, "dir": 1, "min": 155.0, "max": 287.0},
     {"name": "S4 wrist", "offset": 98.7, "dir": -1, "min": 98.7, "max": 219.0}

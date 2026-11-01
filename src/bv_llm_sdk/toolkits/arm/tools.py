@@ -91,6 +91,21 @@ def move_to(arm: Arm, x_cm: float, y_cm: float, z_cm: float) -> dict:
 
 
 @tool
+def rotate_base(arm: Arm, degrees: float) -> dict:
+    """Turn the base from where it is now, keeping the tip's distance from the base. Lifts the
+    pen first and leaves it up. Draws nothing. The base stops about 67 degrees to either side
+    of straight out, so how far it can turn depends on where it is now. tip_theta_deg in
+    get_status says where it is.
+
+    Args:
+        degrees: How far to turn. Positive turns left and negative turns right.
+    """
+    if abs(degrees) > 180:
+        raise ArmError("degrees must be between -180 and 180.")
+    return _message(f"rotated {degrees} degrees", arm.execute(lambda: arm.planner.rotate(degrees)))
+
+
+@tool
 def set_pen(arm: Arm, position: Literal["up", "down"]) -> dict:
     """Lift the pen off the paper or lower it onto the paper where it is now.
 
@@ -186,7 +201,8 @@ def write_text(arm: Arm, text: str, size_cm: float | None = None) -> dict:
 
     Args:
         text: A-Z, 0-9, ! ? and spaces. A newline character starts a new line.
-        size_cm: Letter height in cm, 0.5 to 10. Stays set for later text.
+        size_cm: Letter height in cm, 0.5 to 10. Leave it out for the default 3 cm. Stays set
+            for later text.
     """
     if size_cm is not None:
         if not 0.5 <= size_cm <= 10:
