@@ -16,15 +16,17 @@ If you just installed Git or uv, close the terminal and open a new one first.
 
 ### 1. Make a folder to work in
 
+In your terminal, go to wherever you want to keep the project, then run:
+
 ```bash
-mkdir ~/ws
+mkdir ws
+```
+
+```bash
+cd ws
 ```
 
 ### 2. Download the project
-
-```bash
-cd ~/ws
-```
 
 ```bash
 git clone -b construct-io-starter https://github.com/BuckeyeVertical/bv_llm_sdk.git
@@ -33,7 +35,7 @@ git clone -b construct-io-starter https://github.com/BuckeyeVertical/bv_llm_sdk.
 ### 3. Go into the project folder
 
 ```bash
-cd ~/ws/bv_llm_sdk
+cd bv_llm_sdk
 ```
 
 Run every command from here on inside this folder.
@@ -73,117 +75,6 @@ You should see this:
 Setup is working. Connected to Qwen/Qwen3.6-35B-A3B-FP8.
 ```
 
-## Drone setup
-
-Follow this section if you are using the drone. It runs in a simulator on your computer.
-
-### Prerequisites
-
-
-| Program | What it is for | Check it worked |
-| --- | --- | --- |
-| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Runs the flight simulator | `docker --version` |
-| [Rust](https://rustup.rs) | Builds the 3D world | `cargo --version` |
-
-If `cargo` isn't found after installing Rust, close the terminal and open a new one.
-
-### 1. Download the simulator
-
-```bash
-cd ~/ws
-```
-
-```bash
-git clone https://github.com/BuckeyeVertical/bv_bevy.git
-```
-
-### 2. Start the flight simulator
-
-In your first terminal, run:
-
-```bash
-cd ~/ws/bv_bevy
-```
-
-```bash
-./px4.sh --prebuilt forest    # Mac/Linux
-.\px4.ps1 --prebuilt forest   # Windows
-```
-
-This downloads the simulator, which can take a while. It then waits for the build in
-step 3, so it may look stuck. Leave it running.
-
-If Windows PowerShell won't run `px4.ps1`, run
-`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once.
-
-### 3. Build the 3D world
-
-Open a second terminal and run:
-
-```bash
-cd ~/ws/bv_bevy
-```
-
-```bash
-cargo build --release
-```
-
-The first build can take a long time.
-
-### 4. Open the 3D world
-
-When the build finishes, run this in the second terminal:
-
-```bash
-cargo run --release -- forest
-```
-
-A window opens showing the forest and the drone. Leave both terminals running.
-
-### 5. Install the camera packages
-
-Open a third terminal and run:
-
-```bash
-cd ~/ws/bv_llm_sdk
-```
-
-```bash
-uv sync --extra agent --extra vision
-```
-
-This is a large download. Then download the object detection model:
-
-```bash
-uv run python -c "from bv_llm_sdk.toolkits.drone.vision import get_detector; get_detector()"
-```
-
-### 6. Check that the drone is connected
-
-```bash
-uv run scripts/tool.py get_status
-```
-
-You should see the drone's status printed with no errors.
-
-### 7. Chat with the drone
-
-```bash
-uv run scripts/chat.py --toolkit drone
-```
-
-When you see `you>`, type a request and press Enter:
-
-```text
-you> take off to 10 meters and fly a square
-```
-
-If you see `write the agent loop`, the chat is working. Your next job is in
-[your_task.md](your_task.md).
-
-Type `quit` to exit the chat. To stop the simulator, press Ctrl+C in the first and second
-terminals.
-
 ## Robot arm setup
 
 Follow this section if you are using the robot arm.
@@ -191,7 +82,7 @@ Follow this section if you are using the robot arm.
 ### 1. Install the arm packages
 
 ```bash
-cd ~/ws/bv_llm_sdk
+cd path/to/ws/bv_llm_sdk
 ```
 
 ```bash
@@ -230,6 +121,117 @@ nothing physical happens.
 ```text
 BV_ARM_SIM=1
 ```
+
+## Drone setup
+
+Follow this section if you are using the drone. It runs in a simulator on your computer.
+
+### Prerequisites
+
+
+| Program | What it is for | Check it worked |
+| --- | --- | --- |
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Runs the flight simulator | `docker --version` |
+| [Rust](https://rustup.rs) | Builds the 3D world | `cargo --version` |
+
+If `cargo` isn't found after installing Rust, close the terminal and open a new one.
+
+### 1. Download the simulator
+
+```bash
+cd path/to/ws
+```
+
+```bash
+git clone https://github.com/BuckeyeVertical/bv_bevy.git
+```
+
+### 2. Start the flight simulator
+
+In your first terminal, run:
+
+```bash
+cd path/to/ws/bv_bevy
+```
+
+```bash
+./px4.sh --prebuilt forest    # Mac/Linux
+.\px4.ps1 --prebuilt forest   # Windows
+```
+
+This downloads the simulator, which can take a while. It then waits for the build in
+step 3, so it may look stuck. Leave it running.
+
+If Windows PowerShell won't run `px4.ps1`, run
+`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once.
+
+### 3. Build the 3D world
+
+Open a second terminal and run:
+
+```bash
+cd path/to/ws/bv_bevy
+```
+
+```bash
+cargo build --release
+```
+
+The first build can take a long time.
+
+### 4. Open the 3D world
+
+When the build finishes, run this in the second terminal:
+
+```bash
+cargo run --release -- forest
+```
+
+A window opens showing the forest and the drone. Leave both terminals running.
+
+### 5. Install the camera packages
+
+Open a third terminal and run:
+
+```bash
+cd path/to/ws/bv_llm_sdk
+```
+
+```bash
+uv sync --extra agent --extra vision
+```
+
+This is a large download. Then download the object detection model:
+
+```bash
+uv run python -c "from bv_llm_sdk.toolkits.drone.vision import get_detector; get_detector()"
+```
+
+### 6. Check that the drone is connected
+
+```bash
+uv run scripts/tool.py get_status
+```
+
+You should see the drone's status printed with no errors.
+
+### 7. Chat with the drone
+
+```bash
+uv run scripts/chat.py --toolkit drone
+```
+
+When you see `you>`, type a request and press Enter:
+
+```text
+you> take off to 10 meters and fly a square
+```
+
+If you see `write the agent loop`, the chat is working. Your next job is in
+[your_task.md](your_task.md).
+
+Type `quit` to exit the chat. To stop the simulator, press Ctrl+C in the first and second
+terminals.
 
 ## Your task
 
