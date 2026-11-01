@@ -106,11 +106,15 @@ cd ~/ws/bv_bevy
 ```
 
 ```bash
-./px4.sh --prebuilt forest
+./px4.sh --prebuilt forest    # Mac/Linux
+.\px4.ps1 --prebuilt forest   # Windows
 ```
 
 This downloads the simulator, which can take a while. It then waits for the build in
 step 3, so it may look stuck. Leave it running.
+
+If Windows PowerShell won't run `px4.ps1`, run
+`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once.
 
 ### 3. Build the 3D world
 
