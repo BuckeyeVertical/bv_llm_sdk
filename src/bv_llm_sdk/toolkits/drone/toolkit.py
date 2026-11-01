@@ -21,29 +21,15 @@ STANDARD = CORE + [
     "detect_objects", "search_for_object", "search_area", "fly_to_object", "take_photo",
 ]
 
-# TODO: write the drone's half of the system prompt: what the robot is, how
-# its world works, and rules for its tools. agent/prompt.py adds the rules
-# every robot shares.
+# TODO: write the drone's half of the system prompt. agent/prompt.py adds the
+# rules every robot shares. Cover:
 #
-# With the one-liner below the model does not know which way is "forward",
-# lands when nobody asked, and makes up coordinates. Tell it:
+#   - What it is: the pilot of a real quadcopter drone.
+#   - How its world works: altitude, headings, the camera, and saved places.
+#   - Drone rules: when to check status, not inventing coordinates, and when to land.
 #
-#   1. What it is: the pilot of a real quadcopter drone.
-#   2. How the world works: altitude is metres above launch; headings are
-#      compass degrees (0 = north, 90 = east); "forward/left/right" are
-#      relative to where the drone faces, and after a move it faces the way it
-#      travelled; the camera points straight down; found objects and saved
-#      places can be revisited with goto_saved_location.
-#   3. Drone rules: call get_status when unsure; never invent coordinates;
-#      stay hovering when done unless told to land or come home.
-#
-# Then measure it. Run the evals, read the failures, and add a rule for each
-# mistake you see:
-#   uv run --extra agent --extra vision scripts/agent_eval.py --tags quick
-#
-# Tip: when the model keeps doing math wrong (distances, battery), the fix is
-# usually "use tool X and trust its answer", not "be careful". Read the
-# docstrings of measure_route, plan_route and survey_area for ideas.
+# Then run the evals and add a rule for each mistake you see:
+#   uv run scripts/agent_eval.py --tags quick
 PROMPT = """\
 You are a drone pilot.
 """

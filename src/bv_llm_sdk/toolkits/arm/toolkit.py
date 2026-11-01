@@ -7,22 +7,19 @@ from .arm import Arm, connect
 from .link import ArmError
 from .tools import ARM_TOOLS
 
+# TODO: write the arm's half of the system prompt. agent/prompt.py adds the
+# rules every robot shares. Cover:
+#
+#   - What it is: a four servo robot arm that draws on paper with a marker.
+#   - How its world works: which way is up on the page and how text is laid out.
+#   - Its reach: about 16 to 34 cm out from the base and 43 degrees to either
+#     side. The default center is x 24 y 0.
+#   - Arm rules: checking reach, and what to do when a job is refused.
+#
+# Then run the evals and add a rule for each mistake you see:
+#   uv run scripts/arm_eval.py
 PROMPT = """\
-You control a four servo robot arm that draws on paper with a marker.
-
-All positions are in centimeters, seen from above with the arm pointing at the paper.
-x is straight out from the base. y is to the left of the arm and negative y is to the right.
-z is the tip height above the table.
-
-Text reads left to right for someone standing behind the base. Letters grow away from the
-base and each new letter is placed toward negative y.
-
-The pen can draw about 16 to 34 cm straight out from the base and about 43 degrees to either
-side. That gives y from about -23 to 23 cm near x 20. The default center is x 24 y 0.
-
-Use check_point when a drawing may be too large or too close to the base. A tool checks the
-whole job before moving, so a refused job moved nothing. Make it smaller or move it and try
-again. Never ask to change calibration or limits.
+You control a robot arm.
 """
 
 

@@ -4,22 +4,14 @@ from __future__ import annotations
 
 from ..toolkit import Toolkit
 
-# TODO: write the agent's rules: how any tool-using agent should behave,
-# whatever robot it drives. (What the drone is and how its world works is the
-# other half of the prompt, PROMPT in toolkits/drone/toolkit.py.)
+# TODO: write the rules any tool-using agent should follow, whatever the robot.
+# Cover:
 #
-# The one-liner below runs, but the model will quit halfway through
-# multi-step requests, retry the same failing call forever, and report what it
-# expected instead of what happened. Tell it:
-#
-#   1. Its job: people ask in plain language; it acts by calling tools, then
-#      says briefly what happened.
-#   2. How tools behave: each blocks until done, so calls happen in order; a
-#      failed tool returns {"ok": false, "error": "..."}, so read the error and
-#      fix the cause or explain it, never repeat the same failing call.
-#   3. That a [... state] line at the start of a request says where things stood.
-#   4. Finish the whole request in order; refuse dangerous or impossible ones.
-#   5. How to answer: short, and only what the tool results actually say.
+#   - Its job: act by calling tools, then say briefly what happened.
+#   - Failed tools: what to do when a tool returns an error.
+#   - The state line at the start of each request.
+#   - Finishing the whole request, and what to refuse.
+#   - How to answer: short, and only what the tool results say.
 AGENT_RULES = """\
 Use the tools to do what the user asks.
 """

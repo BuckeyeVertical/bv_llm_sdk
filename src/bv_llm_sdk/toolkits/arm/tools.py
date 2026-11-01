@@ -25,9 +25,9 @@ class PaperPoint(TypedDict):
 
 
 def _center(arm: Arm, x_cm: float | None, y_cm: float | None) -> tuple[float, float]:
-    if x_cm is None or y_cm is None:
-        return arm.settings.center_x, arm.settings.center_y
-    return x_cm, y_cm
+    x = arm.settings.center_x if x_cm is None else x_cm
+    y = arm.settings.center_y if y_cm is None else y_cm
+    return x, y
 
 
 def _positive(value: float, name: str) -> None:

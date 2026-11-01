@@ -75,38 +75,19 @@ class Agent:
     def _loop(self, text: str) -> str:
         """The agent loop. Returns the text to show the user.
 
-        TODO: write this. It is the whole idea of an agent: let the model ask
-        for tools, run them, show it the results, and repeat until it answers
-        in plain text. Everything you need is a helper below or on self:
+        TODO: write this. Pseudocode:
 
-            self.transcript          the conversation, a list you append to
-            self._user_message(text) the user's request as a message
-            self._ask_model()        one model turn -> AssistantMessage
-                                       (.text, .tool_calls)
-            self._execute(call)      run one ToolCall -> ToolResult
-            self._is_stuck(call, result, failures)
-                                     True when the same call keeps failing
-            self._finish(text)       record a message of your own and return it
-            self.config.max_steps    how many model turns one request may take
-
-        Steps:
-          1. Append the user's message to the transcript.
-          2. Up to max_steps times:
-               a. Ask the model, and append its reply to the transcript.
-               b. No tool calls in the reply? The job is done: return its text.
-               c. Otherwise execute each tool call in order and append each
-                  result. (The model sees the results on its next turn.)
-               d. If _is_stuck(...) says a call keeps failing, give up with
-                  _finish(f'I stopped: {call.name} kept failing with
-                  "{result.content.get("error")}".')
-          3. Out of steps? Give up with _finish(f"I stopped after
-             {max_steps} steps without finishing. The request may need to
-             be broken up.")
-
-        Nothing here is drone-specific: the same loop drives any toolkit.
-        Check it with: uv run pytest tests/test_agent.py
+            add the user's message to the transcript
+            repeat up to max_steps times:
+                ask the model and add its reply to the transcript
+                if the reply has no tool calls:
+                    return the reply's text
+                for each tool call in the reply:
+                    run it and add the result to the transcript
+                    if it is stuck, finish with a message
+            finish with a message saying it ran out of steps
         """
-        failures: dict[str, int] = {}  # Failure counts for this request.
+        failures: dict[str, int] = {}
 
         # TODO: your loop here.
         raise NotImplementedError("write the agent loop in Agent._loop (agent/agent.py)")
