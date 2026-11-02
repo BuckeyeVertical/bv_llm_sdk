@@ -84,6 +84,17 @@ def test_rotate_base_past_its_limit_moves_nothing(arm, degrees):
     assert not moves(arm)
 
 
+def test_draw_speed_starts_at_10_and_stays_in_range(arm):
+    assert call(arm, "get_status")["draw_speed_cm_s"] == 10.0
+    assert call(arm, "set_draw_speed", cm_per_s=2)["ok"]
+    slow = call(arm, "draw_square", size_cm=4)["seconds"]
+    assert call(arm, "set_draw_speed", cm_per_s=20)["ok"]
+    assert call(arm, "draw_square", size_cm=4)["seconds"] < slow
+    assert not call(arm, "set_draw_speed", cm_per_s=25)["ok"]
+    assert not call(arm, "set_draw_speed", cm_per_s=0.5)["ok"]
+    assert call(arm, "get_status")["draw_speed_cm_s"] == 20
+
+
 def test_limp_servos_refuse_to_move():
     robot = connect(sim=True)
     result = call(robot, "draw_circle", diameter_cm=3)
@@ -101,6 +112,79 @@ def test_text_cursor_only_moves_when_text_is_drawn(arm):
     assert arm.text_cursor()["x_cm"] < start["x_cm"]
     call(arm, "reset_text_cursor")
     assert arm.text_cursor() == start
+
+
+def test_small_text_stays_at_the_default_start(arm):
+    result = call(arm, "write_text", text="HI", size_cm=3)
+    assert result["ok"] and "moved_to_fit" not in result
+
+
+def test_big_text_moves_closer_to_the_base_to_fit(arm):
+    result = call(arm, "write_text", text="HELLO", size_cm=8)
+    assert result["ok"]
+    assert result["moved_to_fit"]["x_cm"] < arm.settings.text_start_x
+
+
+def test_lines_after_fitted_text_line_up_with_it(arm):
+    result = call(arm, "write_text", text="HI\nYO", size_cm=6)
+    start = result["moved_to_fit"]
+    assert result["text_cursor"]["x_cm"] < start["x_cm"]
+    call(arm, "new_line")
+    assert arm.text_cursor()["y_cm"] == pytest.approx(start["y_cm"])
+
+
+def test_text_too_big_anywhere_moves_nothing(arm):
+    start = arm.text_cursor()
+    assert not call(arm, "write_text", text="BUCKEYE VERTICAL", size_cm=10)["ok"]
+    assert not moves(arm)
+    assert arm.text_cursor()["x_cm"] == start["x_cm"] and arm.text_cursor()["y_cm"] == start["y_cm"]
+
+
+def test_paper_drop_lowers_the_pen_near_the_base_only(arm):
+    k, s = arm.kinematics, arm.settings
+    s.paper_drop = 0.0
+    near, far = k.ik_xyz(s.drop_near_r, 0, 1.0), k.ik_xyz(s.drop_far_r, 0, 1.0)
+    s.paper_drop = 0.4
+    near_low, far_same = k.ik_xyz(s.drop_near_r, 0, 1.0), k.ik_xyz(s.drop_far_r, 0, 1.0)
+    assert k.fk(near_low.joints)["tip"][2] == pytest.approx(1.0)
+    assert far_same.joints == pytest.approx(far.joints)
+    s.paper_drop = 0.0
+    assert k.fk(near_low.joints)["tip"][2] == pytest.approx(0.6)
+    assert k.fk(near.joints)["tip"][2] == pytest.approx(1.0)
+
+
+def test_measure_text_moves_nothing_and_finds_the_biggest_size(arm):
+    start, size = arm.text_cursor(), arm.settings.text_size
+    result = call(arm, "measure_text", text="HELLO", size_cm=6)
+    assert result["ok"] and result["fits"] and result["lines"] == 1
+    assert result["width_cm"] == pytest.approx(4 * 6 + 4, abs=0.1)
+    assert result["biggest_size_cm"] >= 8
+    assert not moves(arm)
+    assert arm.text_cursor() == start and arm.settings.text_size == size
+    biggest = result["biggest_size_cm"]
+    assert call(arm, "write_text", text="HELLO", size_cm=biggest)["ok"]
+
+
+def test_measure_text_says_when_text_cannot_fit(arm):
+    result = call(arm, "measure_text", text="BUCKEYE VERTICAL", size_cm=10)
+    assert result["ok"] and not result["fits"] and "starts_at" not in result
+    assert result["biggest_size_cm"] < 10
+    assert not call(arm, "measure_text", text="#")["ok"]
+
+
+def test_status_lists_what_was_drawn_until_the_board_is_cleared(arm):
+    assert call(arm, "get_status")["on_board"] == []
+    call(arm, "draw_square", size_cm=4)
+    call(arm, "write_text", text="HI", size_cm=3)
+    assert not call(arm, "draw_square", size_cm=4, center_x_cm=80)["ok"]
+    board = call(arm, "get_status")["on_board"]
+    assert [item["what"] for item in board] == ["square 4 cm", "text 'HI'"]
+    assert board[0]["x_cm"] == pytest.approx([22, 26], abs=0.1)
+    sent = len(moves(arm))
+    assert call(arm, "clear_board")["ok"]
+    assert len(moves(arm)) == sent
+    assert call(arm, "get_status")["on_board"] == []
+    assert arm.text_cursor()["x_cm"] == arm.settings.text_start_x
 
 
 def test_check_point_reports_a_verdict(arm):
@@ -220,6 +304,15 @@ def test_handshake_with_no_reset_reads_the_position_once():
     assert link.ser.written == [b"P\n"]
 
 
+def test_handshake_leaves_calibration_mode_left_from_a_crash():
+    link = fake_link(["cal S2 at 88.0 step 2.0 min 77.5 max 167.5 ref 167.5 dir -1", "ok",
+                      "info left calibration. Send W to save to EEPROM.", "ok",
+                      "pos 96.0 120.0 200.0 150.0 att 1111 mov 0", "ok"])
+    link.resync = lambda: pytest.fail("the position was read after leaving calibration")
+    link._handshake()
+    assert link.ser.written == [b"P\n", b"x\n", b"P\n"]
+
+
 def test_handshake_after_a_reset_waits_for_ready_and_clears_stale_replies():
     link = fake_link(["info servos are limp. Pose the arm at park, then send A.", "ready"])
     resyncs = []
@@ -307,9 +400,16 @@ def test_eval_house_needs_its_roof_away_from_the_base(arm):
     assert not upright_house(drawn(arm, down))[0]
 
 
+def test_eval_big_text_needs_the_asked_height(arm):
+    from bv_llm_sdk.toolkits.arm.evals import big_hello
+
+    assert big_hello(drawn(arm, ("write_text", {"text": "HELLO", "size_cm": 8})))[0]
+    assert not big_hello(drawn(arm, ("write_text", {"text": "HELLO", "size_cm": 4})))[0]
+
+
 def test_eval_counts_only_text_that_was_written(arm):
     from bv_llm_sdk.toolkits.arm.evals import whole_phrase
 
-    result = drawn(arm, ("write_text", {"text": "BUCKEYE VERTICAL"}))
+    result = drawn(arm, ("write_text", {"text": "BUCKEYE VERTICAL", "size_cm": 10}))
     assert result.written() == ""
     assert not whole_phrase(result)[0]

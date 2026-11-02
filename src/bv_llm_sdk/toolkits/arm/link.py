@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 
 from ...registry import ToolError
@@ -36,16 +37,38 @@ class Link:
         except ImportError as exc:
             raise ArmError("the arm needs pyserial. Run: uv sync --extra arm") from exc
         self._serial_error = serial.SerialException
+        self.ser = serial.Serial()
+        self.ser.port, self.ser.baudrate, self.ser.timeout = port, BAUD, 0.1
+        if os.name == "nt":
+            self.ser.dtr = False
         try:
-            self.ser = serial.Serial(port, BAUD, timeout=0.1)
+            self.ser.open()
         except serial.SerialException as exc:
             raise ArmError(f"could not open {port}: {exc}") from exc
+        self._keep_dtr_on_close()
         self._handshake()
+
+    def _keep_dtr_on_close(self) -> None:
+        # An Uno restarts when DTR changes. Leaving it set on close means the next
+        # connection finds the arm still holding instead of restarting it.
+        try:
+            import termios
+        except ImportError:
+            return
+        try:
+            attrs = termios.tcgetattr(self.ser.fileno())
+            attrs[2] &= ~termios.HUPCL
+            termios.tcsetattr(self.ser.fileno(), termios.TCSANOW, attrs)
+        except (termios.error, OSError):
+            pass
 
     def _handshake(self) -> None:
         self.ser.reset_input_buffer()
         self.ser.write(b"P\n")
         lines = self._read_until(("ok", "ready"), timeout=8.0)
+        if any(line.startswith("cal") for line in lines):
+            self.send("x")
+            lines = self.send("P")
         if not any(line.startswith("pos") for line in lines):
             self.resync()
 

@@ -134,6 +134,31 @@ def hello(result: Result) -> tuple[bool, str]:
     return result.written().upper() == "HELLO", f"wrote {result.written()!r}"
 
 
+def big_hello(result: Result) -> tuple[bool, str]:
+    if not result.shapes:
+        return False, "nothing was drawn"
+    tall = result.drawing().tall
+    ok = result.written().upper() == "HELLO" and abs(tall - 8) <= 0.5
+    return ok, f"wrote {result.written()!r}, {tall:.1f} cm tall"
+
+
+def big_second_word(result: Result) -> tuple[bool, str]:
+    writes = [args for name, args, ok in result.calls if name == "write_text" and ok]
+    if len(writes) < 2:
+        return False, f"{len(writes)} words written"
+    size = writes[-1].get("size_cm") or 0
+    ok = writes[-1].get("text", "").upper() == "SARVY" and size >= 8
+    return ok, f"second word {writes[-1].get('text')!r} at {size} cm"
+
+
+def cleared_and_big(result: Result) -> tuple[bool, str]:
+    writes = [args for name, args, ok in result.calls if name == "write_text" and ok]
+    cleared = result.used("clear_board")
+    size = (writes[-1].get("size_cm") or 0) if writes else 0
+    ok = cleared and bool(writes) and writes[-1].get("text", "").upper() == "HI" and size >= 8
+    return ok, f"cleared={cleared}, last text at {size} cm"
+
+
 def two_lines(result: Result) -> tuple[bool, str]:
     if not result.shapes:
         return False, "nothing was drawn"
@@ -187,6 +212,9 @@ SCENARIOS = [
     Scenario("house", ["Draw a house with a triangular roof."], upright_house),
     Scenario("row", ["Draw three 3 cm squares in a row, not touching."], three_apart),
     Scenario("text", ["Write HELLO."], hello),
+    Scenario("big_text", ["Write HELLO with letters 8 cm tall."], big_hello),
+    Scenario("second_word", ["Write HELLO.", "Now write SARVY."], big_second_word),
+    Scenario("erased", ["Write HELLO.", "I erased the board. Write HI."], cleared_and_big),
     Scenario("two_lines", ["Write CAT on one line and DOG on the line below it."], two_lines),
     Scenario("long_text", ["Write BUCKEYE VERTICAL."], whole_phrase),
     Scenario("too_big", ["Draw a circle 60 cm wide."], refused_too_big),

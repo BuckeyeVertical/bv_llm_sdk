@@ -19,6 +19,8 @@ class Arm:
         self.planner = Planner(self.kinematics)
         self.backlash = Backlash(self.kinematics)
         self.cursor: tuple[float, float] | None = None
+        self.drawn: list[dict] = []
+        self.margin = settings.text_start_y
 
     def close(self) -> None:
         self.link.close()
@@ -90,7 +92,16 @@ class Arm:
             self.link.send(step.command(), timeout=10.0, strict=True)
         self.link.send("Z", timeout=30.0)
 
-    def execute(self, build: Callable[[], list[Step]], allow_recover: bool = False) -> dict:
+    def _record(self, label: str, steps: list[Step]) -> None:
+        ink = [(step.x, step.y) for step in steps if step.pen]
+        if not ink:
+            return
+        xs, ys = [p[0] for p in ink], [p[1] for p in ink]
+        self.drawn.append({"what": label, "x_cm": [round(min(xs), 1), round(max(xs), 1)],
+                           "y_cm": [round(min(ys), 1), round(max(ys), 1)]})
+
+    def execute(self, build: Callable[[], list[Step]], allow_recover: bool = False,
+                label: str | None = None) -> dict:
         self._ensure_ready(allow_recover)
         steps = build()
         start = self.planner.servo
@@ -111,6 +122,8 @@ class Arm:
             raise
         finally:
             self.planner.tip = None
+        if label:
+            self._record(label, steps)
         return summarize(steps)
 
     def halt(self) -> None:
@@ -137,6 +150,8 @@ class Arm:
             "tip_r_cm": round(r, 2),
             "tip_theta_deg": round(math.degrees(math.atan2(y, x)), 1),
             "pen_on_paper": z <= self.settings.paper_z + 0.05,
+            "draw_speed_cm_s": self.settings.draw_speed,
+            "on_board": self.drawn,
             "text_cursor": self.text_cursor(),
         }
 
@@ -145,28 +160,98 @@ class Arm:
         return {"x_cm": round(x, 2), "y_cm": round(y, 2), "size_cm": self.settings.text_size}
 
     def _cursor(self) -> tuple[float, float]:
-        if self.cursor is None:
-            self.cursor = (self.settings.text_start_x, self.settings.text_start_y)
-        return self.cursor
+        return self.cursor or (self.settings.text_start_x, self.settings.text_start_y)
 
-    def write(self, text: str) -> dict:
+    def _layout(self, text: str, x: float, y: float) -> tuple[list[list[Point]], float, float]:
         s = self.settings
-        text = text.upper()
-        bad = sorted({c for c in text if c not in FONT and c not in " \n"})
-        if bad:
-            raise ArmError(f"cannot write {' '.join(bad)}. Use A-Z, 0-9, ! ? and spaces.")
         advance = GLYPH_ADVANCE / 6.0 * s.text_size
-        x, y = self._cursor()
         strokes: list[list[Point]] = []
         for c in text:
             if c == " ":
                 y -= advance
             elif c == "\n":
                 x -= s.line_spacing * s.text_size
-                y = s.text_start_y
+                y = self.margin
             else:
                 strokes += glyph_strokes(c, y, x, s.text_size)
                 y -= advance
+        return strokes, x, y
+
+    def _draws(self, strokes: list[list[Point]]) -> bool:
+        tip = self.planner.tip
+        steps = []
+        for stroke in strokes:
+            steps += self.planner.stroke(stroke)
+        self.planner.tip = tip
+        return not find_problems(steps, None, self.kinematics)
+
+    def _fit(self, text: str) -> tuple[float, float]:
+        s = self.settings
+        start = (s.text_start_x, s.text_start_y)
+        self.margin = start[1]
+        if self._draws(self._layout(text, *start)[0]):
+            return start
+        advance = GLYPH_ADVANCE / 6.0 * s.text_size
+        longest = max(len(line) for line in text.split("\n"))
+        self.margin = (longest * advance - advance + s.text_size * 4 / 6) / 2
+        x = s.text_start_x
+        while x >= 10:
+            if self._draws(self._layout(text, x, self.margin)[0]):
+                return x, self.margin
+            x -= 0.5
+        self.margin = start[1]
+        return start
+
+    def _fits_as_new_text(self, text: str, size: float) -> tuple[float, float] | None:
+        s = self.settings
+        saved = s.text_size, self.margin
+        try:
+            s.text_size = size
+            start = self._fit(text)
+            return start if self._draws(self._layout(text, *start)[0]) else None
+        finally:
+            s.text_size, self.margin = saved
+
+    def measure(self, text: str, size: float) -> dict:
+        text = _check_text(text)
+        self._ensure_ready(False)
+        lines = text.split("\n")
+        longest = max(len(line) for line in lines)
+        start = self._fits_as_new_text(text, size)
+        sizes = [k / 2 for k in range(1, 21)]
+        low, high = 0, len(sizes) - 1
+        biggest = None
+        while low <= high:
+            mid = (low + high) // 2
+            if self._fits_as_new_text(text, sizes[mid]):
+                biggest, low = sizes[mid], mid + 1
+            else:
+                high = mid - 1
+        result = {
+            "width_cm": round(max(0, longest - 1) * size + size * 4 / 6, 1),
+            "height_cm": round(size + (len(lines) - 1) * self.settings.line_spacing * size, 1),
+            "lines": len(lines),
+            "fits": start is not None,
+            "biggest_size_cm": biggest,
+        }
+        if start:
+            result["starts_at"] = {"x_cm": round(start[0], 2), "y_cm": round(start[1], 2)}
+        return result
+
+    def write(self, text: str) -> dict:
+        s = self.settings
+        text = _check_text(text)
+        moved = {}
+        fresh = self.cursor is None
+        if fresh:
+            self.margin = s.text_start_y
+            if text.strip():
+                self._ensure_ready(False)
+                start = self._fit(text)
+                if start != (s.text_start_x, s.text_start_y):
+                    moved = {"moved_to_fit": {"x_cm": round(start[0], 2), "y_cm": round(start[1], 2)}}
+                self.cursor = start
+        strokes, x, y = self._layout(text, *self._cursor())
         result = {}
         if strokes:
             def build() -> list[Step]:
@@ -174,9 +259,22 @@ class Arm:
                 for stroke in strokes:
                     steps += self.planner.stroke(stroke)
                 return steps
-            result = self.execute(build)
+            try:
+                result = self.execute(build, label=f"text {text.strip()!r}")
+            except ArmError:
+                if fresh:
+                    self.cursor = None
+                raise
         self.cursor = (x, y)
-        return {**result, "text_cursor": self.text_cursor()}
+        return {**result, **moved, "text_cursor": self.text_cursor()}
+
+
+def _check_text(text: str) -> str:
+    text = text.upper()
+    bad = sorted({c for c in text if c not in FONT and c not in " \n"})
+    if bad:
+        raise ArmError(f"cannot write {' '.join(bad)}. Use A-Z, 0-9, ! ? and spaces.")
+    return text
 
 
 def _refusal(bad: list[tuple[int, Step, list[str]]], total: int) -> str:

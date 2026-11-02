@@ -53,6 +53,9 @@ class Settings:
     base_enabled: bool
     base_yaw: float
     servos: list[Servo]
+    paper_drop: float = 0.0
+    drop_near_r: float = 16.0
+    drop_far_r: float = 28.0
 
 
 def load_settings(path: Path = CALIBRATION_FILE) -> Settings:
