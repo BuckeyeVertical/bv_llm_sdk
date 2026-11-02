@@ -42,9 +42,20 @@ def _message(text: str, result: dict) -> dict:
 @tool
 def get_status(arm: Arm) -> dict:
     """Report the tip position, whether the servos are holding, whether the pen is on the
-    paper, and the text cursor. Moves nothing.
+    paper, the text cursor, the drawing speed, and on_board: what has been drawn since the
+    board was last cleared and the x and y range each one covers. Moves nothing.
     """
     return arm.status()
+
+
+@tool
+def clear_board(arm: Arm) -> dict:
+    """Forget everything drawn and put the text cursor back at the first line. Call it when
+    told the board was erased. Moves nothing.
+    """
+    arm.drawn.clear()
+    arm.cursor = None
+    return {"message": "board cleared", "text_cursor": arm.text_cursor()}
 
 
 @tool
@@ -117,6 +128,20 @@ def set_pen(arm: Arm, position: Literal["up", "down"]) -> dict:
 
 
 @tool
+def set_draw_speed(arm: Arm, cm_per_s: float) -> dict:
+    """Set how fast the pen moves while it draws. The default is 10 cm per second. Faster
+    lines can come out dotted, so only change it when asked. Stays set for later drawing.
+
+    Args:
+        cm_per_s: Drawing speed in cm per second, 1 to 20.
+    """
+    if not 1 <= cm_per_s <= 20:
+        raise ArmError("cm_per_s must be between 1 and 20.")
+    arm.settings.draw_speed = cm_per_s
+    return {"message": f"draw speed {cm_per_s} cm/s"}
+
+
+@tool
 def draw_line(arm: Arm, x1_cm: float, y1_cm: float, x2_cm: float, y2_cm: float) -> dict:
     """Draw a straight line between two points on the paper.
 
@@ -127,7 +152,7 @@ def draw_line(arm: Arm, x1_cm: float, y1_cm: float, x2_cm: float, y2_cm: float) 
         y2_cm: End distance to the left in cm.
     """
     points = [(x1_cm, y1_cm), (x2_cm, y2_cm)]
-    return _message("drew a line", arm.execute(lambda: arm.planner.stroke(points)))
+    return _message("drew a line", arm.execute(lambda: arm.planner.stroke(points), label="line"))
 
 
 @tool
@@ -141,7 +166,8 @@ def draw_path(arm: Arm, points: list[PaperPoint]) -> dict:
     if len(points) < 2:
         raise ArmError("draw_path needs at least 2 points.")
     path = [(p["x_cm"], p["y_cm"]) for p in points]
-    return _message(f"drew {len(path)} points", arm.execute(lambda: arm.planner.stroke(path)))
+    label = f"path of {len(path)} points"
+    return _message(f"drew {len(path)} points", arm.execute(lambda: arm.planner.stroke(path), label=label))
 
 
 @tool
@@ -158,7 +184,8 @@ def draw_square(arm: Arm, size_cm: float, center_x_cm: float | None = None,
     _positive(size_cm, "size_cm")
     cx, cy = _center(arm, center_x_cm, center_y_cm)
     points = shapes.square(size_cm, cx, cy, angle_deg)
-    return _message("drew a square", arm.execute(lambda: arm.planner.stroke(points)))
+    label = f"square {size_cm} cm"
+    return _message("drew a square", arm.execute(lambda: arm.planner.stroke(points), label=label))
 
 
 @tool
@@ -175,7 +202,8 @@ def draw_triangle(arm: Arm, size_cm: float, center_x_cm: float | None = None,
     _positive(size_cm, "size_cm")
     cx, cy = _center(arm, center_x_cm, center_y_cm)
     points = shapes.triangle(size_cm, cx, cy, angle_deg)
-    return _message("drew a triangle", arm.execute(lambda: arm.planner.stroke(points)))
+    label = f"triangle {size_cm} cm"
+    return _message("drew a triangle", arm.execute(lambda: arm.planner.stroke(points), label=label))
 
 
 @tool
@@ -191,17 +219,20 @@ def draw_circle(arm: Arm, diameter_cm: float, center_x_cm: float | None = None,
     _positive(diameter_cm, "diameter_cm")
     cx, cy = _center(arm, center_x_cm, center_y_cm)
     points = shapes.circle(diameter_cm, cx, cy)
-    return _message("drew a circle", arm.execute(lambda: arm.planner.stroke(points)))
+    label = f"circle {diameter_cm} cm"
+    return _message("drew a circle", arm.execute(lambda: arm.planner.stroke(points), label=label))
 
 
 @tool
 def write_text(arm: Arm, text: str, size_cm: float | None = None) -> dict:
     """Write text at the text cursor. Letters are drawn as capitals. The cursor only moves
-    if the text was drawn, so refused text can be retried after new_line.
+    if the text was drawn, so refused text can be retried after new_line. When the cursor is
+    at the first line and the text does not fit there, it is centered and moved closer to the
+    base to fit, and moved_to_fit says where it started.
 
     Args:
         text: A-Z, 0-9, ! ? and spaces. A newline character starts a new line.
-        size_cm: Letter height in cm, 0.5 to 10. Leave it out for the default 3 cm. Stays set
+        size_cm: Letter height in cm, 0.5 to 10. Leave it out for the default 6 cm. Stays set
             for later text.
     """
     if size_cm is not None:
@@ -209,6 +240,21 @@ def write_text(arm: Arm, text: str, size_cm: float | None = None) -> dict:
             raise ArmError("size_cm must be between 0.5 and 10.")
         arm.settings.text_size = size_cm
     return _message(f"wrote {text!r}", arm.write(text))
+
+
+@tool
+def measure_text(arm: Arm, text: str, size_cm: float | None = None) -> dict:
+    """Check how big text would be and whether it fits as new text after reset_text_cursor.
+    Moves nothing. Also gives biggest_size_cm, the largest letter height that fits.
+
+    Args:
+        text: A-Z, 0-9, ! ? and spaces. A newline character starts a new line.
+        size_cm: Letter height in cm to check. Leave it out to check the current text size.
+    """
+    size = arm.settings.text_size if size_cm is None else size_cm
+    if not 0.5 <= size <= 10:
+        raise ArmError("size_cm must be between 0.5 and 10.")
+    return arm.measure(text, size)
 
 
 @tool

@@ -36,7 +36,13 @@ class Kinematics:
         rz["elbow"] = (rz["shoulder"][0] + s.l1 * math.cos(a2), rz["shoulder"][1] + s.l1 * math.sin(a2))
         rz["wrist"] = (rz["elbow"][0] + s.l2 * math.cos(a3), rz["elbow"][1] + s.l2 * math.sin(a3))
         rz["tip"] = (rz["wrist"][0] + s.l3 * math.cos(a4), rz["wrist"][1] + s.l3 * math.sin(a4))
+        rz["tip"] = (rz["tip"][0], rz["tip"][1] + self.drop(rz["tip"][0]))
         return {k: (r * math.cos(yaw), r * math.sin(yaw), z, r) for k, (r, z) in rz.items()}
+
+    def drop(self, r: float) -> float:
+        s = self.settings
+        span = s.drop_far_r - s.drop_near_r
+        return s.paper_drop * min(1.0, max(0.0, (s.drop_far_r - r) / span)) if span > 0 else 0.0
 
     def joints_to_servo(self, joints: list[float]) -> list[float]:
         return [s.offset + s.dir * s.scale * j for s, j in zip(self.settings.servos, joints)]
@@ -72,7 +78,7 @@ class Kinematics:
         if z < s.paper_z - 0.5:
             problems.append("below the paper")
         rw = r - s.shoulder_offset
-        zw = z + s.l3 - s.base_height
+        zw = z - self.drop(r) + s.l3 - s.base_height
         cos3 = (rw * rw + zw * zw - s.l1 * s.l1 - s.l2 * s.l2) / (2 * s.l1 * s.l2)
         if not -1.0 <= cos3 <= 1.0:
             problems.append("out of reach")
