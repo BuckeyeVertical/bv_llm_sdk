@@ -73,24 +73,25 @@ class Agent:
         return reply
 
     def _loop(self, text: str) -> str:
-        """The agent loop. Returns the text to show the user.
-
-        TODO: write this. Pseudocode:
-
-            add the user's message to the transcript
-            repeat up to max_steps times:
-                ask the model and add its reply to the transcript
-                if the reply has no tool calls:
-                    return the reply's text
-                for each tool call in the reply:
-                    run it and add the result to the transcript
-                    if it is stuck, finish with a message
-            finish with a message saying it ran out of steps
-        """
+        """Run tools in order until the model finishes or a limit is reached."""
         failures: dict[str, int] = {}
-
-        # TODO: your loop here.
-        raise NotImplementedError("write the agent loop in Agent._loop (agent/agent.py)")
+        self.transcript.append(self._user_message(text))
+        for _ in range(self.config.max_steps):
+            reply = self._ask_model()
+            self.transcript.append(reply)
+            if not reply.tool_calls:
+                return reply.text
+            for call in reply.tool_calls:
+                result = self._execute(call)
+                self.transcript.append(result)
+                if self._is_stuck(call, result, failures):
+                    self._stop_robot()
+                    return self._finish(
+                        f"Stopped after repeated failures of {call.name}: "
+                        f"{result.content.get('error', 'tool failed')}"
+                    )
+        self._stop_robot()
+        return self._finish("Stopped because the request reached the model step limit.")
 
     # Helpers.
 

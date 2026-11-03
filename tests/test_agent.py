@@ -95,6 +95,39 @@ def test_repeated_identical_failure_stops_the_request():
     assert len(ex.calls) == 3
 
 
+def test_failure_limit_closes_pending_calls_and_allows_the_next_request(monkeypatch):
+    ex = FakeExecutor({"move": {"ok": False, "error": "cannot move"}})
+    agent, model, _ = make([
+        AssistantMessage(tool_calls=[call("move", "a"), call("land", "b")]),
+        AssistantMessage(text="Ready."),
+    ], ex, max_consecutive_errors=1)
+    stops = []
+    monkeypatch.setattr(agent.toolkit, "stop", lambda: stops.append(True))
+    assert "cannot move" in agent.run("go")
+    assert stops == [True]
+    assert ex.calls == [("move", {})]
+    results = [m for m in agent.transcript if isinstance(m, ToolResult)]
+    assert [r.call_id for r in results] == ["a", "b"]
+    assert all(not r.ok for r in results)
+    assert agent.run("hello") == "Ready."
+
+
+def test_interrupt_closes_pending_calls_and_stops_the_robot(monkeypatch):
+    def interrupt(robot, name, args):
+        raise KeyboardInterrupt
+
+    agent, _, _ = make([
+        AssistantMessage(tool_calls=[call("move", "a"), call("land", "b")]),
+    ], interrupt)
+    stops = []
+    monkeypatch.setattr(agent.toolkit, "stop", lambda: stops.append(True))
+    assert "Interrupted" in agent.run("go")
+    assert stops == [True]
+    results = [m for m in agent.transcript if isinstance(m, ToolResult)]
+    assert [r.call_id for r in results] == ["a", "b"]
+    assert all(not r.ok for r in results)
+
+
 def test_unknown_tool_and_tool_outside_toolset_are_reported_not_run():
     ex = FakeExecutor()
     agent, model, _ = make([

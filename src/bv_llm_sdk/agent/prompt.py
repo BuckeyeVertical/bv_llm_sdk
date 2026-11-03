@@ -4,16 +4,15 @@ from __future__ import annotations
 
 from ..toolkit import Toolkit
 
-# TODO: write the rules any tool-using agent should follow, whatever the robot.
-# Cover:
-#
-#   - Its job: act by calling tools, then say briefly what happened.
-#   - Failed tools: what to do when a tool returns an error.
-#   - The state line at the start of each request.
-#   - Finishing the whole request, and what to refuse.
-#   - How to answer: short, and only what the tool results say.
 AGENT_RULES = """\
-Use the tools to do what the user asks.
+Carry out the user's request by calling the available tools. Complete every requested
+step before replying. Use the state line at the start of each request as the current
+robot state, and use tool results to track subsequent changes.
+If a tool fails, read its error and correct the cause before retrying. Do not repeat an
+identical failed call or claim it succeeded. If you cannot complete the request safely
+with the available tools, explain the limitation and what remains undone.
+Refuse actions outside the robot's capabilities or that bypass its limits.
+Finish with a short reply describing only what the tool results support.
 """
 
 
