@@ -293,7 +293,7 @@ def test_link_stops_the_job_when_the_firmware_clamps_a_move():
 
 
 def test_link_turns_firmware_errors_into_arm_errors():
-    with pytest.raises(ArmError, match="bad number"):
+    with pytest.raises(ArmError, match="bad number.*'M x'"):
         fake_link(["err bad number"]).send("M x")
 
 
@@ -301,7 +301,7 @@ def test_handshake_with_no_reset_reads_the_position_once():
     link = fake_link(["pos 96.0 120.0 200.0 150.0 att 1111 mov 0", "ok"])
     link.resync = lambda: pytest.fail("no reset happened so nothing is stale")
     link._handshake()
-    assert link.ser.written == [b"P\n"]
+    assert link.ser.written == [b"\n", b"P\n"]
 
 
 def test_handshake_leaves_calibration_mode_left_from_a_crash():
@@ -310,7 +310,7 @@ def test_handshake_leaves_calibration_mode_left_from_a_crash():
                       "pos 96.0 120.0 200.0 150.0 att 1111 mov 0", "ok"])
     link.resync = lambda: pytest.fail("the position was read after leaving calibration")
     link._handshake()
-    assert link.ser.written == [b"P\n", b"x\n", b"P\n"]
+    assert link.ser.written == [b"\n", b"P\n", b"x\n", b"P\n"]
 
 
 def test_handshake_after_a_reset_waits_for_ready_and_clears_stale_replies():

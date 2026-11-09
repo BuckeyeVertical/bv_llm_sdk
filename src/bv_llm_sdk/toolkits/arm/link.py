@@ -63,6 +63,9 @@ class Link:
             pass
 
     def _handshake(self) -> None:
+        # Ends any half command left in the Arduino by an earlier run, then drops its reply.
+        self.ser.write(b"\n")
+        time.sleep(0.1)
         self.ser.reset_input_buffer()
         self.ser.write(b"P\n")
         lines = self._read_until(("ok", "ready"), timeout=8.0)
@@ -75,7 +78,8 @@ class Link:
     def close(self) -> None:
         self.ser.close()
 
-    def _read_until(self, enders: tuple[str, ...], timeout: float, strict: bool = False) -> list[str]:
+    def _read_until(self, enders: tuple[str, ...], timeout: float, strict: bool = False,
+                    sent: str | None = None) -> list[str]:
         lines, warnings, end = [], [], time.time() + timeout
         while time.time() < end:
             raw = self.ser.readline()
@@ -85,7 +89,7 @@ class Link:
             if not line:
                 continue
             if line.startswith("err"):
-                raise ArmError(line[4:])
+                raise ArmError(line[4:] + (f" (the Arduino was sent {sent!r})" if sent else ""))
             if line.startswith("warn"):
                 warnings.append(line)
             if line in enders:
@@ -98,7 +102,7 @@ class Link:
     def send(self, line: str, timeout: float = 5.0, strict: bool = False) -> list[str]:
         try:
             self.ser.write((line + "\n").encode())
-            return self._read_until(("ok",), timeout, strict)
+            return self._read_until(("ok",), timeout, strict, sent=line)
         except self._serial_error as exc:
             raise ArmError(f"lost the serial connection: {exc}") from exc
 
