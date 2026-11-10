@@ -29,6 +29,7 @@ action, because getting any of them wrong fails in a way that looks like
    without changing it everywhere.
 """
 
+import math
 import time
 
 from pymavlink import mavutil
@@ -98,11 +99,13 @@ def get_position(timeout_s: float = 10.0) -> dict[str, float]:
                 f"within {HANDSHAKE_TIMEOUT_S}s"
             )
 
+        position = None
+        attitude = None
         deadline = time.time() + timeout_s
         while time.time() < deadline:
             try:
                 message = conn.recv_match(
-                    type="GLOBAL_POSITION_INT",
+                    type=["GLOBAL_POSITION_INT", "ATTITUDE"],
                     blocking=True,
                     timeout=1.0,
                 )
@@ -112,15 +115,24 @@ def get_position(timeout_s: float = 10.0) -> dict[str, float]:
             if message is None:
                 continue
 
+            if message.get_type() == "GLOBAL_POSITION_INT":
+                position = message
+            else:
+                attitude = message
+
+            if position is None or attitude is None:
+                continue
+
+            heading_deg = math.degrees(attitude.yaw) % 360.0
             return {
-                "latitude": message.lat / 1e7,
-                "longitude": message.lon / 1e7,
-                "altitude_amsl_m": message.alt / 1000.0,
-                "altitude_relative_m": message.relative_alt / 1000.0,
-                "velocity_north_m_s": message.vx / 100.0,
-                "velocity_east_m_s": message.vy / 100.0,
-                "velocity_down_m_s": message.vz / 100.0,
-                "heading_deg": message.hdg / 100.0,
+                "latitude": position.lat / 1e7,
+                "longitude": position.lon / 1e7,
+                "altitude_amsl_m": position.alt / 1000.0,
+                "altitude_relative_m": position.relative_alt / 1000.0,
+                "velocity_north_m_s": position.vx / 100.0,
+                "velocity_east_m_s": position.vy / 100.0,
+                "velocity_down_m_s": position.vz / 100.0,
+                "heading_deg": heading_deg,
             }
 
         raise RuntimeError(f"No GLOBAL_POSITION_INT was received in {timeout_s}s")

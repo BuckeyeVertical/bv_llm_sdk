@@ -124,23 +124,23 @@ def move(
         start_lon = position.lon / 1e7
         start_alt_amsl_m = position.alt / 1000.0
 
-        if relative_to_drone:
-            attitude = None
-            deadline = time.monotonic() + 5.0
-            while time.monotonic() < deadline:
-                try:
-                    attitude = conn.recv_match(
-                        type="ATTITUDE", blocking=True, timeout=1.0
-                    )
-                except ConnectionResetError:
-                    time.sleep(0.1)
-                    continue
-                if attitude is not None:
-                    break
-            if attitude is None:
-                raise RuntimeError("no ATTITUDE from PX4 within 5s")
+        attitude = None
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            try:
+                attitude = conn.recv_match(
+                    type="ATTITUDE", blocking=True, timeout=1.0
+                )
+            except ConnectionResetError:
+                time.sleep(0.1)
+                continue
+            if attitude is not None:
+                break
+        if attitude is None:
+            raise RuntimeError("no ATTITUDE from PX4 within 5s")
 
-            heading_rad = attitude.yaw
+        heading_rad = attitude.yaw
+        if relative_to_drone:
             north_offset_m = north_m * math.cos(heading_rad) - east_m * math.sin(
                 heading_rad
             )
@@ -169,7 +169,7 @@ def move(
                 -1.0,  # ground speed, -1 to use the current setting
                 1.0,  # bitmask: transition to guided mode
                 0.0,  # reserved
-                math.nan,  # param4: yaw, NaN to keep the current heading
+                math.degrees(heading_rad) % 360.0,  # param4: preserve heading
                 target_lat,  # param5: latitude
                 target_lon,  # param6: longitude
                 target_alt_amsl_m,  # param7: altitude AMSL
